@@ -43,24 +43,14 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 
 	private static final long serialVersionUID = 548442173952040494L;
 
-	/**
-	 * Function from {@link GeneralRow} and int to double.
-	 */
-	@FunctionalInterface
-	private interface ToDoubleIntRowFunction {
-
-		double apply(GeneralRow row, int index);
+	private enum ReadType {
+		NUMERIC, NOMINAL, DATETIME;
 	}
-
-	/**
-	 * Reading function for numeric columns.
-	 */
-	private static final ToDoubleIntRowFunction NUMERIC = GeneralRow::getNumeric;
 
 	/**
 	 * Reading function for date-time columns.
 	 */
-	private static final ToDoubleIntRowFunction DATE_TIME = (row, index) -> {
+	private static double getDateTime(GeneralRow row, int index) {
 		Instant instant = (Instant) row.getObject(index);
 		return instant == null ? Double.NaN : instant.toEpochMilli();
 	};
@@ -71,40 +61,27 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	 */
 	private final transient Table table;
 	private final HeaderExampleSet header;
-	private final transient ToDoubleIntRowFunction[] toDouble;
+	private final ReadType[] readTypes;
 
 	DatetimeTableWrapper(Table table) {
 		this.table = table;
-		this.header = BeltConverter.convertHeader(table);
-		toDouble = new ToDoubleIntRowFunction[table.width()];
+		this.header = DoubleTableWrapper.getShiftedHeader(table);
+		readTypes = new ReadType[table.width()];
 		for (int i = 0; i < table.width(); i++) {
 			if (table.column(i).type().id() == Column.TypeId.DATE_TIME) {
-				toDouble[i] = DATE_TIME;
+				readTypes[i] = ReadType.DATETIME;
+			} else if (table.column(i).type().id() == Column.TypeId.NOMINAL) {
+				readTypes[i] = ReadType.NOMINAL;
 			} else {
-				toDouble[i] = NUMERIC;
+				readTypes[i] = ReadType.NUMERIC;
 			}
 		}
 	}
 
-	DatetimeTableWrapper(Table table, int firstDateTime) {
-		this.table = table;
-		this.header = BeltConverter.convertHeader(table);
-		toDouble = new ToDoubleIntRowFunction[table.width()];
-		for (int i = 0; i < firstDateTime; i++) {
-			toDouble[i] = NUMERIC;
-		}
-		for (int i = firstDateTime; i < table.width(); i++) {
-			if (table.column(i).type().id() == Column.TypeId.DATE_TIME) {
-				toDouble[i] = DATE_TIME;
-			} else {
-				toDouble[i] = NUMERIC;
-			}
-		}
-	}
 
 	public DatetimeTableWrapper(DatetimeTableWrapper wrapper) {
 		this.table = wrapper.table;
-		this.toDouble = wrapper.toDouble;
+		this.readTypes = wrapper.readTypes;
 		this.header = (HeaderExampleSet) wrapper.header.clone();
 	}
 
@@ -128,7 +105,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 		GeneralRowReader reader = new GeneralRowReader(table.getColumns(), ColumnReader.MIN_BUFFER_SIZE);
 		reader.setPosition(index - 1);
 		reader.move();
-		return new Example(new FakeRow(reader, toDouble), header);
+		return new Example(new FakeRow(reader, readTypes), header);
 	}
 
 	@Override
@@ -143,7 +120,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 			@Override
 			public Example next() {
 				reader.move();
-				return new Example(new FakeRow(reader, toDouble), header);
+				return new Example(new FakeRow(reader, readTypes), header);
 			}
 		};
 	}
@@ -152,16 +129,25 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 
 		private static final long serialVersionUID = -4422364455662199363L;
 		private final transient GeneralRow row;
-		private final transient ToDoubleIntRowFunction[] toDouble;
+		private final transient ReadType[] readTypes;
 
-		private FakeRow(GeneralRow row, ToDoubleIntRowFunction[] toDouble) {
+		private FakeRow(GeneralRow row, ReadType[] readTypes) {
 			this.row = row;
-			this.toDouble = toDouble;
+			this.readTypes = readTypes;
 		}
 
 		@Override
 		protected double get(int index, double defaultValue) {
-			return toDouble[index].apply(row, index);
+			switch (readTypes[index]) {
+				case NOMINAL:
+					//shift category indices since belt mapping starts with null
+					return row.getNumeric(index) - 1;
+				case DATETIME:
+					return getDateTime(row, index);
+				case NUMERIC:
+				default:
+					return row.getNumeric(index);
+			}
 		}
 
 		@Override
@@ -183,7 +169,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 		public String toString() {
 			StringBuilder result = new StringBuilder();
 			for (int i = 0; i < row.width(); i++) {
-				result.append(i == 0 ? "" : ",").append(toDouble[i].apply(row, i));
+				result.append(i == 0 ? "" : ",").append(get(i, 0));
 			}
 			return result.toString();
 		}

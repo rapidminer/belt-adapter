@@ -128,26 +128,6 @@ public class TableViewCreatorTest {
 		RapidAssert.ASSERTER_REGISTRY.registerAllAsserters(new AsserterFactoryRapidMiner());
 	}
 
-	private static String[][] readExampleSetToStringArray(ExampleSet set) {
-		String[][] result = new String[set.getAttributes().size()][];
-		int i = 0;
-		for (Attribute att : set.getAttributes()) {
-			result[i] = new String[set.size()];
-			int j = 0;
-			for (Example example : set) {
-				double value = example.getValue(att);
-				if (Double.isNaN(value)) {
-					result[i][j] = null;
-				} else {
-					result[i][j] = att.getMapping().mapIndex((int) value);
-				}
-				j++;
-			}
-			i++;
-		}
-		return result;
-	}
-
 	@Test
 	public void testNominalTypes() {
 		Attribute nominal = AttributeFactory.createAttribute("nominal", Ontology.NOMINAL);
@@ -184,8 +164,7 @@ public class TableViewCreatorTest {
 		Table table = BeltConverter.convert(set, CONTEXT).getTable();
 		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
 
-		//cannot use RapidAssert since mappings are different
-		assertArrayEquals(readExampleSetToStringArray(set), readExampleSetToStringArray(view));
+		RapidAssert.assertEquals(set, view);
 	}
 
 	@Test

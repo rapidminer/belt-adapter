@@ -387,7 +387,7 @@ public final class BeltConverter {
 	/**
 	 * Gets the value type from the meta data if present or from the table otherwise.
 	 */
-	private static int getValueType(Table table, String label, int columnIndex) {
+	static int getValueType(Table table, String label, int columnIndex) {
 		Column column = table.column(columnIndex);
 		int derivedOntology = convertToOntology(column);
 		LegacyType legacyType = table.getFirstMetaData(label, LegacyType.class);

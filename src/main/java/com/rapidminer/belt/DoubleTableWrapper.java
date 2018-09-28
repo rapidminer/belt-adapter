@@ -19,17 +19,18 @@
 package com.rapidminer.belt;
 
 import java.io.ObjectStreamException;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import com.rapidminer.adaption.belt.IOTable;
+import com.rapidminer.example.Attribute;
+import com.rapidminer.example.AttributeRole;
 import com.rapidminer.example.Attributes;
 import com.rapidminer.example.Example;
 import com.rapidminer.example.ExampleSet;
-import com.rapidminer.example.Statistics;
+import com.rapidminer.example.SimpleAttributes;
 import com.rapidminer.example.set.HeaderExampleSet;
+import com.rapidminer.example.table.AttributeFactory;
 import com.rapidminer.example.table.DataRow;
 import com.rapidminer.example.table.DataRowFactory;
 import com.rapidminer.example.table.ExampleTable;
@@ -52,18 +53,21 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	 */
 	private final transient Table table;
 	private final HeaderExampleSet header;
-	private final Map<String, List<Statistics>> statisticsMap;
+	private final boolean[] nominal;
 
 	DoubleTableWrapper(Table table) {
 		this.table = table;
-		this.header = BeltConverter.convertHeader(table);
-		this.statisticsMap = new HashMap<>();
+		this.header = getShiftedHeader(table);
+		this.nominal = new boolean[table.width()];
+		for (int i = 0; i < table.width(); i++) {
+			nominal[i] = table.column(i).type().id() == Column.TypeId.NOMINAL;
+		}
 	}
 
 	public DoubleTableWrapper(DoubleTableWrapper wrapper) {
 		this.table = wrapper.table;
 		this.header = (HeaderExampleSet) wrapper.header.clone();
-		this.statisticsMap = new HashMap<>(wrapper.statisticsMap);
+		this.nominal = wrapper.nominal;
 	}
 
 	@Override
@@ -86,7 +90,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 		RowReader reader = new RowReader(table.getColumns(), ColumnReader.MIN_BUFFER_SIZE);
 		reader.setPosition(index - 1);
 		reader.move();
-		return new Example(new FakeRow(reader), header);
+		return new Example(new FakeRow(reader, nominal), header);
 	}
 
 	@Override
@@ -101,7 +105,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 			@Override
 			public Example next() {
 				reader.move();
-				return new Example(new FakeRow(reader), header);
+				return new Example(new FakeRow(reader, nominal), header);
 			}
 		};
 	}
@@ -110,14 +114,21 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	private static final class FakeRow extends DataRow {
 		private static final long serialVersionUID = -2914473986997566956L;
 		private final transient Row row;
+		private final boolean[] nominal;
 
-		private FakeRow(Row row) {
+		private FakeRow(Row row, boolean[] nominal) {
 			this.row = row;
+			this.nominal = nominal;
 		}
 
 		@Override
 		protected double get(int index, double defaultValue) {
-			return row.get(index);
+			if (nominal[index]) {
+				//shift category indices since belt mapping starts with null
+				return row.get(index) - 1;
+			} else {
+				return row.get(index);
+			}
 		}
 
 		@Override
@@ -139,7 +150,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 		public String toString() {
 			StringBuilder result = new StringBuilder();
 			for (int i = 0; i < row.width(); i++) {
-				result.append(i == 0 ? "" : ",").append(row.get(i));
+				result.append(i == 0 ? "" : ",").append(row.get(i) - (nominal[i] ? 1 : 0));
 			}
 			return result.toString();
 		}
@@ -151,6 +162,37 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	 */
 	private Object writeReplace() throws ObjectStreamException {
 		return BeltConverter.convertSequentially(new IOTable(table));
+	}
+
+	/**
+	 * This creates a header example set from the table. In contrast to {@link BeltConverter#convertHeader(Table)}, the
+	 * nominal mappings are shifted so that they do not contain {@code null}. This requires an adjustment of the
+	 * category indices.
+	 *
+	 * @param table
+	 * 		the table to convert
+	 * @return a header example set
+	 */
+	static HeaderExampleSet getShiftedHeader(Table table) {
+		Attributes attributes = new SimpleAttributes();
+		List<String> labels = table.labels();
+		int i = 0;
+		for (String label : labels) {
+			Column column = table.column(i);
+			Attribute attribute = AttributeFactory.createAttribute(label, BeltConverter.getValueType(table, label, i));
+			attribute.setTableIndex(i);
+			attributes.add(new AttributeRole(attribute));
+			if (attribute.isNominal()) {
+				List<String> mapping = column.getDictionary(String.class);
+				attribute.setMapping(new ShiftedNominalMappingAdapter(mapping));
+			}
+			String role = BeltConverter.convertRole(table, label);
+			if (role != null) {
+				attributes.setSpecialAttribute(attribute, role);
+			}
+			i++;
+		}
+		return new HeaderExampleSet(attributes);
 	}
 
 }

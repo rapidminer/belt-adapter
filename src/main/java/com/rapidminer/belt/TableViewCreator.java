@@ -47,7 +47,7 @@ public enum TableViewCreator{
 		Objects.requireNonNull(table, "table must not be null");
 		for (int i = 0; i < table.width(); i++) {
 			if (table.column(i).type().id() == Column.TypeId.DATE_TIME) {
-				return new DatetimeTableWrapper(table, i);
+				return new DatetimeTableWrapper(table);
 			}
 		}
 		return new DoubleTableWrapper(table);
