@@ -87,7 +87,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Example getExample(int index) {
-		RowReader reader = new RowReader(table.getColumns(), ColumnReader.MIN_BUFFER_SIZE);
+		NumericRowReader reader = new NumericRowReader(table.getColumns(), NumericReader.MIN_BUFFER_SIZE);
 		reader.setPosition(index - 1);
 		reader.move();
 		return new Example(new FakeRow(reader, nominal), header);
@@ -95,7 +95,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Iterator<Example> iterator() {
-		RowReader reader = new RowReader(table);
+		NumericRowReader reader = new NumericRowReader(table.getColumns());
 		return new Iterator<Example>() {
 			@Override
 			public boolean hasNext() {
@@ -113,10 +113,10 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 
 	private static final class FakeRow extends DataRow {
 		private static final long serialVersionUID = -2914473986997566956L;
-		private final transient Row row;
+		private final transient NumericRow row;
 		private final boolean[] nominal;
 
-		private FakeRow(Row row, boolean[] nominal) {
+		private FakeRow(NumericRow row, boolean[] nominal) {
 			this.row = row;
 			this.nominal = nominal;
 		}

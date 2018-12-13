@@ -147,7 +147,7 @@ public class BeltConverterTest {
 
 	private static double[] readColumnToArray(Table table, int column) {
 		double[] data = new double[table.height()];
-		ColumnReader reader = new ColumnReader(table.column(column));
+		NumericReader reader = Readers.numericReader(table.column(column));
 		for (int j = 0; j < table.height(); j++) {
 			data[j] = reader.read();
 		}
@@ -158,7 +158,7 @@ public class BeltConverterTest {
 		String[] data = new String[table.height()];
 		Column col = table.column(column);
 		List<String> categoricalMapping = col.getDictionary(String.class);
-		CategoricalColumnReader reader = new CategoricalColumnReader(col);
+		CategoricalReader reader = Readers.categoricalReader(col);
 		for (int j = 0; j < table.height(); j++) {
 			data[j] = categoricalMapping.get(reader.read());
 		}
@@ -230,8 +230,13 @@ public class BeltConverterTest {
 		}
 
 		@Test(expected = IllegalArgumentException.class)
+		public void testTableToSetSequentiallyNullTable() {
+			BeltConverter.convertSequentially((IOTable) null);
+		}
+
+		@Test(expected = IllegalArgumentException.class)
 		public void testTableToSetNullContext() {
-			BeltConverter.convert(new IOTable(Table.newTable(1).build(Belt.defaultContext())), null);
+			BeltConverter.convert(new IOTable(Builders.newTableBuilder(1).build(Belt.defaultContext())), null);
 		}
 	}
 
@@ -536,7 +541,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testSimple() {
-			Table table = Table.newTable(112).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+			Table table = Builders.newTableBuilder(112).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
 					.build(Belt.defaultContext());
 
 			ExampleSet set = BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -557,7 +562,7 @@ public class BeltConverterTest {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Table.newTable(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
 					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
 					.build(Belt.defaultContext());
 
@@ -580,7 +585,7 @@ public class BeltConverterTest {
 				buffer2.set(i, "val" + (i % 2));
 			}
 			buffer2.set(42, null);
-			Table table = Table.newTable(112).add("first", buffer.toBooleanColumn(ColumnTypes.NOMINAL, "value0"))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toBooleanColumn(ColumnTypes.NOMINAL, "value0"))
 					.add("second", buffer2.toBooleanColumn(ColumnTypes.NOMINAL, "val1"))
 					.build(Belt.defaultContext());
 
@@ -606,7 +611,7 @@ public class BeltConverterTest {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Table.newTable(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
 					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
 					.build(Belt.defaultContext());
 
@@ -619,7 +624,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testManyColumns() {
-			TableBuilder builder = Table.newTable(11);
+			TableBuilder builder = Builders.newTableBuilder(11);
 			for (int i = 0; i < 30; i++) {
 				builder.addReal("real" + i, j -> 3 * j / 5.0).addInt("int" + i, j -> 5 * j);
 			}
@@ -634,7 +639,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testRoles() {
-			TableBuilder builder = Table.newTable(10);
+			TableBuilder builder = Builders.newTableBuilder(10);
 			builder.addInt("att-1", i -> i);
 
 			ColumnRole[] columnRoles = new ColumnRole[]{ColumnRole.ID, ColumnRole.LABEL, ColumnRole.PREDICTION,
@@ -670,7 +675,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testTypes() {
-			TableBuilder builder = Table.newTable(10);
+			TableBuilder builder = Builders.newTableBuilder(10);
 			builder.addReal("att1", i -> i);
 
 			builder.addReal("att2", i -> i);
@@ -728,7 +733,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testInvalidLegacyTypes() {
-			TableBuilder builder = Table.newTable(10);
+			TableBuilder builder = Builders.newTableBuilder(10);
 			builder.addReal("att1", i -> i);
 			builder.addMetaData("att1", LegacyType.DATE_TIME);
 
@@ -770,7 +775,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testAnnotations() {
-			Table table = Table.newTable(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
 					.build(Belt.defaultContext());
 
 			IOTable tableObject = new IOTable(table);
@@ -929,7 +934,7 @@ public class BeltConverterTest {
 			List<Attribute> attributes = Arrays.asList(integer, animals, real, answer);
 
 			ExampleSet set = ExampleSets.from(attributes).withBlankSize(10)
-					.withRole(integer, Attributes.ID_NAME)
+					.withRole(integer, Attributes.CONFIDENCE_NAME+"_"+"Yes")
 					.withRole(answer, Attributes.LABEL_NAME)
 					.withRole(animals, "someStupidRole").build();
 
@@ -1105,7 +1110,7 @@ public class BeltConverterTest {
 			Attribute date = AttributeFactory.createAttribute("date", Ontology.DATE);
 			Attribute time = AttributeFactory.createAttribute("time", Ontology.TIME);
 			List<Attribute> attributes = Arrays.asList(numeric, real, integer, dateTime, date, time);
-			ExampleSet set = ExampleSets.from(attributes).withBlankSize(50).build();
+			ExampleSet set = ExampleSets.from(attributes).withBlankSize(50).withRole(integer, Attributes.LABEL_NAME).build();
 
 			Table table = BeltConverter.convert(set, CONTEXT).getTable();
 
@@ -1129,7 +1134,7 @@ public class BeltConverterTest {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Table.newTable(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
 					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
 					.build(Belt.defaultContext());
 
@@ -1163,7 +1168,7 @@ public class BeltConverterTest {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Table.newTable(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
 					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
 					.build(Belt.defaultContext());
 
@@ -1172,7 +1177,7 @@ public class BeltConverterTest {
 				buffer.set(i, "value" + (i % 5));
 			}
 
-			Table table2 = Table.newTable(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
+			Table table2 = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
 					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
 					.build(Belt.defaultContext());
 
@@ -1189,6 +1194,155 @@ public class BeltConverterTest {
 			double[][] expectedMapping = readTableToArray(table2);
 			double[][] resultMapping = readExampleSetToArray(remapped);
 			assertArrayEquals(expectedMapping, resultMapping);
+		}
+	}
+
+	@RunWith(Parameterized.class)
+	public static class TableToSetSequentially {
+
+		public TableToSetSequentially(boolean legacyMode) {
+			ParameterService.setParameterValue(RapidMiner.PROPERTY_RAPIDMINER_SYSTEM_LEGACY_DATA_MGMT,
+					String.valueOf(legacyMode));
+		}
+
+		@Parameters(name = "legacyMode={0}")
+		public static Collection<Object> params() {
+			return Arrays.asList(true, false);
+		}
+
+		@Test
+		public void testSimple() {
+			Table table = Builders.newTableBuilder(112).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+					.build(Belt.defaultContext());
+
+			ExampleSet set = BeltConverter.convertSequentially(new IOTable(table));
+
+			double[][] expected = readTableToArray(table);
+			double[][] result = readExampleSetToArray(set);
+			assertArrayEquals(expected, result);
+		}
+
+
+		@Test
+		public void testManyColumns() {
+			TableBuilder builder = Builders.newTableBuilder(11);
+			for (int i = 0; i < 30; i++) {
+				builder.addReal("real" + i, j -> 3 * j / 5.0).addInt("int" + i, j -> 5 * j);
+			}
+			Table table = builder.build(Belt.defaultContext());
+
+			ExampleSet set = BeltConverter.convertSequentially(new IOTable(table));
+
+			double[][] expected = readTableToArray(table);
+			double[][] result = readExampleSetToArray(set);
+			assertArrayEquals(expected, result);
+		}
+
+		@Test
+		public void testRoles() {
+			TableBuilder builder = Builders.newTableBuilder(10);
+			builder.addInt("att-1", i -> i);
+
+			ColumnRole[] columnRoles = new ColumnRole[]{ColumnRole.ID, ColumnRole.LABEL, ColumnRole.PREDICTION,
+					ColumnRole.SCORE, ColumnRole.WEIGHT, ColumnRole.OUTLIER, ColumnRole.CLUSTER, ColumnRole.BATCH,
+					ColumnRole.METADATA};
+			for (int i = 0; i < columnRoles.length; i++) {
+				builder.addReal("att" + i, j -> j);
+				builder.addMetaData("att" + i, columnRoles[i]);
+			}
+
+			builder.addInt("batt1", i -> i);
+			builder.addMetaData("batt1", ColumnRole.METADATA);
+			builder.addMetaData("batt1", new LegacyRole("ignore-me"));
+
+			builder.addInt("batt2", i -> i);
+			builder.addMetaData("batt2", ColumnRole.SCORE);
+			builder.addMetaData("batt2", new LegacyRole("confidence_Yes"));
+
+			Table table = builder.build(Belt.defaultContext());
+
+			ExampleSet set = BeltConverter.convertSequentially(new IOTable(table));
+
+			Iterable<AttributeRole> iterable = () -> set.getAttributes().allAttributeRoles();
+			String[] result = StreamSupport.stream(iterable.spliterator(), false).map(AttributeRole::getSpecialName)
+					.toArray(String[]::new);
+			String[] expected =
+					new String[]{null, Attributes.ID_NAME, Attributes.LABEL_NAME, Attributes.PREDICTION_NAME,
+							Attributes.CONFIDENCE_NAME, Attributes.WEIGHT_NAME, Attributes.OUTLIER_NAME,
+							Attributes.CLUSTER_NAME, Attributes.BATCH_NAME, "meta_data", "ignore-me",
+							"confidence_Yes"};
+			assertArrayEquals(expected, result);
+		}
+
+		@Test
+		public void testTypes() {
+			TableBuilder builder = Builders.newTableBuilder(10);
+			builder.addReal("att1", i -> i);
+
+			builder.addReal("att2", i -> i);
+			builder.addMetaData("att2", LegacyType.NUMERICAL);
+
+			builder.addInt("att3", i -> i);
+
+			builder.addInt("att4", i -> i);
+			builder.addMetaData("att4", LegacyType.NUMERICAL);
+
+			builder.addDateTime("att5", i -> Instant.EPOCH);
+
+			builder.addDateTime("att6", i -> Instant.EPOCH);
+			builder.addMetaData("att6", LegacyType.DATE);
+
+			builder.addDateTime("att6.5", i -> Instant.EPOCH);
+			builder.addMetaData("att6.5", LegacyType.TIME);
+
+			builder.addTime("att7", i -> LocalTime.NOON);
+
+			builder.addTime("att7.5", i -> LocalTime.NOON);
+			builder.addMetaData("att7.5", LegacyType.NUMERICAL);
+
+			builder.addNominal("att8", i -> i % 2 == 0 ? "A" : "B");
+
+			builder.addNominal("att9", i -> i % 2 == 0 ? "A" : "B", 2);
+
+			builder.addNominal("att10", i -> i % 2 == 0 ? "A" : "B");
+			builder.addMetaData("att10", LegacyType.BINOMINAL);
+
+			builder.addNominal("att11", i -> i % 2 == 0 ? "A" : "B", 2);
+			builder.addMetaData("att11", LegacyType.STRING);
+
+			builder.addNominal("att12", i -> i % 2 == 0 ? "A" : "B");
+			builder.addMetaData("att12", LegacyType.FILE_PATH);
+
+			builder.addNominal("att13", i -> i % 2 == 0 ? "A" : "B", 2);
+			builder.addMetaData("att13", LegacyType.NOMINAL);
+
+			builder.addBoolean("att14", i -> i % 2 == 0 ? "A" : "B", "A", ColumnTypes.NOMINAL);
+
+			Table table = builder.build(Belt.defaultContext());
+
+			ExampleSet set = BeltConverter.convertSequentially(new IOTable(table));
+
+			int[] result =
+					StreamSupport.stream(set.getAttributes().spliterator(), false).mapToInt(Attribute::getValueType)
+							.toArray();
+			int[] expected = new int[]{Ontology.REAL, Ontology.NUMERICAL, Ontology.INTEGER, Ontology.NUMERICAL,
+					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.INTEGER, Ontology.NUMERICAL, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
+					Ontology.BINOMINAL,	Ontology.STRING, Ontology.FILE_PATH, Ontology.NOMINAL, Ontology.BINOMINAL};
+
+			assertArrayEquals(expected, result);
+		}
+
+		@Test
+		public void testAnnotations() {
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+					.build(Belt.defaultContext());
+
+			IOTable tableObject = new IOTable(table);
+			tableObject.getAnnotations().setAnnotation(Annotations.KEY_DC_AUTHOR, "gmeier");
+
+			ExampleSet set = BeltConverter.convertSequentially(tableObject);
+
+			assertEquals(tableObject.getAnnotations(), set.getAnnotations());
 		}
 	}
 

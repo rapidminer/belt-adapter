@@ -48,9 +48,23 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	}
 
 	/**
+	 * Function from {@link MixedRow} and int to double.
+	 */
+	@FunctionalInterface
+	private interface ToDoubleIntRowFunction {
+
+		double apply(MixedRow row, int index);
+	}
+
+	/**
+	 * Reading function for numeric columns.
+	 */
+	private static final ToDoubleIntRowFunction NUMERIC = MixedRow::getNumeric;
+
+	/**
 	 * Reading function for date-time columns.
 	 */
-	private static double getDateTime(GeneralRow row, int index) {
+	private static double getDateTime(MixedRow row, int index) {
 		Instant instant = (Instant) row.getObject(index);
 		return instant == null ? Double.NaN : instant.toEpochMilli();
 	};
@@ -102,7 +116,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Example getExample(int index) {
-		GeneralRowReader reader = new GeneralRowReader(table.getColumns(), ColumnReader.MIN_BUFFER_SIZE);
+		MixedRowReader reader = new MixedRowReader(table.getColumns(), NumericReader.MIN_BUFFER_SIZE);
 		reader.setPosition(index - 1);
 		reader.move();
 		return new Example(new FakeRow(reader, readTypes), header);
@@ -110,7 +124,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Iterator<Example> iterator() {
-		GeneralRowReader reader = new GeneralRowReader(table);
+		MixedRowReader reader = new MixedRowReader(table.getColumns());
 		return new Iterator<Example>() {
 			@Override
 			public boolean hasNext() {
@@ -128,10 +142,10 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	private static final class FakeRow extends DataRow {
 
 		private static final long serialVersionUID = -4422364455662199363L;
-		private final transient GeneralRow row;
+		private final transient MixedRow row;
 		private final transient ReadType[] readTypes;
 
-		private FakeRow(GeneralRow row, ReadType[] readTypes) {
+		private FakeRow(MixedRow row, ReadType[] readTypes) {
 			this.row = row;
 			this.readTypes = readTypes;
 		}

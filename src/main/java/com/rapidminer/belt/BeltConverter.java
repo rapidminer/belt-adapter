@@ -83,12 +83,12 @@ public final class BeltConverter {
 	/**
 	 * Number of milli-seconds in a second
 	 */
-	private static final int MILLI_SECONDS_PER_SECOND = 1_000;
+	private static final long MILLISECONDS_PER_SECOND = 1_000;
 
 	/**
 	 * Number of nano-seconds in a milli-second
 	 */
-	private static final int NANOS_PER_MILLI_SECOND = 1_000_000;
+	private static final long NANOS_PER_MILLI_SECOND = 1_000_000;
 
 	/**
 	 * String into which {@link ColumnRole#METADATA} is converted
@@ -241,7 +241,7 @@ public final class BeltConverter {
 		for (String label : labels) {
 			String studioRole = convertRole(table, label);
 			if (studioRole != null) {
-				studioRole = makeUnique(allAttributes, studioRole);
+				checkUnique(allAttributes, studioRole);
 				allAttributes.setSpecialAttribute(allAttributes.get(label), studioRole);
 			}
 		}
@@ -278,7 +278,7 @@ public final class BeltConverter {
 		for (String label : labels) {
 			String studioRole = convertRole(table, label);
 			if (studioRole != null) {
-				studioRole = makeUnique(allAttributes, studioRole);
+				checkUnique(allAttributes, studioRole);
 				allAttributes.setSpecialAttribute(allAttributes.get(label), studioRole);
 			}
 		}
@@ -290,11 +290,10 @@ public final class BeltConverter {
 	 * Roles for ExampleSets must be unique. If the converted roles are not, we need to make them. For now this cannot
 	 * happen.
 	 */
-	private static String makeUnique(Attributes allAttributes, String studioRole) {
+	private static void checkUnique(Attributes allAttributes, String studioRole) {
 		if (allAttributes.findRoleBySpecialName(studioRole) != null) {
 			throw new UnsupportedOperationException("Role names must be unique for now");
 		}
-		return studioRole;
 	}
 
 	/**
@@ -445,7 +444,7 @@ public final class BeltConverter {
 				case Ontology.NUMERICAL:
 				case Ontology.REAL:
 				case Ontology.INTEGER:
-					ColumnReader reader = new ColumnReader(column);
+					NumericReader reader = new NumericReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 					for (Example example : set) {
 						example.setValue(attribute, reader.read());
 					}
@@ -462,7 +461,8 @@ public final class BeltConverter {
 	}
 
 	private static void copyToDateTime(ExampleSet set, Attribute attribute, Column column) {
-		ObjectColumnReader<Instant> reader = new ObjectColumnReader<>(column, Instant.class);
+		ObjectReader<Instant> reader =
+				new ObjectReader<>(column, Instant.class, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (Example example : set) {
 			Instant read = reader.read();
 			if (read == null) {
@@ -475,10 +475,10 @@ public final class BeltConverter {
 
 	private static void copyToNominal(ExampleSet set, Attribute attribute, Column column) {
 		copyNewToOldMapping(attribute, column);
-		CategoricalColumnReader reader = new CategoricalColumnReader(column);
+		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (Example example : set) {
 			int read = reader.read();
-			if (read == CategoricalColumnReader.MISSING_CATEGORY) {
+			if (read == CategoricalReader.MISSING_CATEGORY) {
 				example.setValue(attribute, Double.NaN);
 			} else {
 				example.setValue(attribute, read - 1d);
@@ -512,7 +512,7 @@ public final class BeltConverter {
 		//the first mapped value is negative
 		legacyMapping.mapString(mapping.get(negativeIndex));
 		legacyMapping.mapString(mapping.get(positiveIndex));
-		CategoricalColumnReader reader = new CategoricalColumnReader(column);
+		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (Example example : set) {
 			int read = reader.read();
 			if (read == negativeIndex) {
@@ -534,10 +534,10 @@ public final class BeltConverter {
 		//the first mapped value is negative, the order is kept
 		legacyMapping.mapString(mapping.get(mapping.size() - 2));
 		legacyMapping.mapString(mapping.get(mapping.size() - 1));
-		CategoricalColumnReader reader = new CategoricalColumnReader(column);
+		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (Example example : set) {
 			int read = reader.read();
-			if (read == CategoricalColumnReader.MISSING_CATEGORY) {
+			if (read == CategoricalReader.MISSING_CATEGORY) {
 				example.setValue(attribute, Double.NaN);
 			} else {
 				example.setValue(attribute, read - 1d);
@@ -599,7 +599,8 @@ public final class BeltConverter {
 				case Ontology.REAL:
 				case Ontology.INTEGER:
 					copier.add(() -> {
-						ColumnReader reader = new ColumnReader(column);
+						NumericReader reader =
+								new NumericReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 						for (int row = 0; row < columnTable.size(); row++) {
 							columnTable.getDataRow(row).set(attribute, reader.read());
 						}
@@ -631,7 +632,8 @@ public final class BeltConverter {
 
 	private static Void copyDateTimeColumnToRows(ColumnarExampleTable columnTable, Attribute attribute, Column
 			column) {
-		ObjectColumnReader<Instant> reader = new ObjectColumnReader<>(column, Instant.class);
+		ObjectReader<Instant> reader =
+				new ObjectReader<>(column, Instant.class, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (int row = 0; row < columnTable.size(); row++) {
 			Instant read = reader.read();
 			if (read == null) {
@@ -674,7 +676,7 @@ public final class BeltConverter {
 		//the first mapped value is negative
 		legacyMapping.mapString(mapping.get(negativeIndex));
 		legacyMapping.mapString(mapping.get(positiveIndex));
-		CategoricalColumnReader reader = new CategoricalColumnReader(column);
+		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (int row = 0; row < columnTable.size(); row++) {
 			int read = reader.read();
 			if (read == negativeIndex) {
@@ -690,17 +692,16 @@ public final class BeltConverter {
 	/**
 	 * Copy binominals from table to mapping in case the mapping contains first the negative, then the positive value.
 	 */
-	private static void copyNegativePositiveToRows(ColumnarExampleTable columnTable, Attribute attribute, Column
-			column,
-												   List<String> mapping) {
+	private static void copyNegativePositiveToRows(ColumnarExampleTable columnTable, Attribute attribute,
+												   Column column, List<String> mapping) {
 		//the first mapped value is negative, the order is kept
 		NominalMapping legacyMapping = attribute.getMapping();
 		legacyMapping.mapString(mapping.get(mapping.size() - 2));
 		legacyMapping.mapString(mapping.get(mapping.size() - 1));
-		CategoricalColumnReader reader = new CategoricalColumnReader(column);
+		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (int row = 0; row < columnTable.size(); row++) {
 			int read = reader.read();
-			if (read == CategoricalColumnReader.MISSING_CATEGORY) {
+			if (read == CategoricalReader.MISSING_CATEGORY) {
 				columnTable.getDataRow(row).set(attribute, Double.NaN);
 			} else {
 				columnTable.getDataRow(row).set(attribute, read - 1d);
@@ -710,10 +711,10 @@ public final class BeltConverter {
 
 	private static Void copyNominalColumnToRows(ColumnarExampleTable columnTable, Attribute attribute, Column column) {
 		copyNewToOldMapping(attribute, column);
-		CategoricalColumnReader reader = new CategoricalColumnReader(column);
+		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
 		for (int row = 0; row < columnTable.size(); row++) {
 			int read = reader.read();
-			if (read == CategoricalColumnReader.MISSING_CATEGORY) {
+			if (read == CategoricalReader.MISSING_CATEGORY) {
 				columnTable.getDataRow(row).set(attribute, Double.NaN);
 			} else {
 				columnTable.getDataRow(row).set(attribute, read - 1d);
@@ -735,7 +736,7 @@ public final class BeltConverter {
 	 */
 	private static Table sequentialConvert(ExampleSet exampleSet, ConcurrencyContext context) {
 		int size = exampleSet.size();
-		TableBuilder builder = Table.newTable(size);
+		TableBuilder builder = Builders.newTableBuilder(size);
 		for (Iterator<AttributeRole> allRoles = exampleSet.getAttributes().allAttributeRoles(); allRoles.hasNext(); ) {
 			AttributeRole role = allRoles.next();
 			Attribute attribute = role.getAttribute();
@@ -749,7 +750,6 @@ public final class BeltConverter {
 				}
 			}
 		}
-
 		return builder.build(ContextAdapter.adapt(context));
 	}
 
@@ -808,7 +808,7 @@ public final class BeltConverter {
 
 
 	private static Column getDateTimeColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		HighPrecisionDateTimeBuffer buffer = new HighPrecisionDateTimeBuffer(size);
+		NanosecondDateTimeBuffer buffer = new NanosecondDateTimeBuffer(size, false);
 		int i = 0;
 		for (Example example : exampleSet) {
 			double value = example.getValue(attribute);
@@ -816,29 +816,29 @@ public final class BeltConverter {
 				buffer.set(i++, null);
 			} else {
 				long longValue = (long) value;
-				buffer.set(i++, Math.floorDiv(longValue, MILLI_SECONDS_PER_SECOND),
-						(int) (Math.floorMod(longValue, MILLI_SECONDS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+				buffer.set(i++, Math.floorDiv(longValue, MILLISECONDS_PER_SECOND),
+						(int) (Math.floorMod(longValue, MILLISECONDS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
 			}
 		}
 		return buffer.toColumn();
 	}
 
 	private static Column getDateColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		LowPrecisionDateTimeBuffer buffer = new LowPrecisionDateTimeBuffer(size);
+		SecondDateTimeBuffer buffer = new SecondDateTimeBuffer(size, false);
 		int i = 0;
 		for (Example example : exampleSet) {
 			double value = example.getValue(attribute);
 			if (Double.isNaN(value)) {
 				buffer.set(i++, null);
 			} else {
-				buffer.set(i++, ((long) value) / MILLI_SECONDS_PER_SECOND);
+				buffer.set(i++, ((long) value) / MILLISECONDS_PER_SECOND);
 			}
 		}
 		return buffer.toColumn();
 	}
 
 	private static Column getIntegerColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		FixedIntegerBuffer intBuffer = new FixedIntegerBuffer(size);
+		IntegerBuffer intBuffer = new IntegerBuffer(size, false);
 		int j = 0;
 		for (Example example : exampleSet) {
 			intBuffer.set(j++, example.getValue(attribute));
@@ -847,7 +847,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getRealColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		FixedRealBuffer buffer = new FixedRealBuffer(size);
+		RealBuffer buffer = new RealBuffer(size, false);
 		int i = 0;
 		for (Example example : exampleSet) {
 			buffer.set(i++, example.getValue(attribute));
@@ -1081,50 +1081,50 @@ public final class BeltConverter {
 				break;
 			case Ontology.DATE:
 				storeOntology(meta, attribute);
-				futureColumns.add(() -> getLowPrecisionDateColumn(size, table, attribute));
+				futureColumns.add(() -> getSecondDateColumn(size, table, attribute));
 				break;
 			case Ontology.DATE_TIME:
-				futureColumns.add(() -> getHighPrecisionDateColumn(size, table, attribute));
+				futureColumns.add(() -> getNanosecondDateColumn(size, table, attribute));
 				break;
 			case Ontology.TIME:
 				storeOntology(meta, attribute);
-				futureColumns.add(() -> getHighPrecisionDateColumn(size, table, attribute));
+				futureColumns.add(() -> getNanosecondDateColumn(size, table, attribute));
 				break;
 			default:
 				throw new UnsupportedOperationException(MESSAGE_NON_SUPPORTED);
 		}
 	}
 
-	private static Column getHighPrecisionDateColumn(int size, ExampleTable table, Attribute attribute) {
-		HighPrecisionDateTimeBuffer buffer = new HighPrecisionDateTimeBuffer(size);
+	private static Column getNanosecondDateColumn(int size, ExampleTable table, Attribute attribute) {
+		NanosecondDateTimeBuffer buffer = new NanosecondDateTimeBuffer(size, false);
 		for (int i = 0; i < table.size(); i++) {
 			double value = table.getDataRow(i).get(attribute);
 			if (Double.isNaN(value)) {
 				buffer.set(i, null);
 			} else {
 				long longValue = (long) value;
-				buffer.set(i, Math.floorDiv(longValue, MILLI_SECONDS_PER_SECOND),
-						(int) (Math.floorMod(longValue, MILLI_SECONDS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+				buffer.set(i, Math.floorDiv(longValue, MILLISECONDS_PER_SECOND),
+						(int) (Math.floorMod(longValue, MILLISECONDS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
 			}
 		}
 		return buffer.toColumn();
 	}
 
-	private static Column getLowPrecisionDateColumn(int size, ExampleTable table, Attribute attribute) {
-		LowPrecisionDateTimeBuffer buffer = new LowPrecisionDateTimeBuffer(size);
+	private static Column getSecondDateColumn(int size, ExampleTable table, Attribute attribute) {
+		SecondDateTimeBuffer buffer = new SecondDateTimeBuffer(size, false);
 		for (int i = 0; i < table.size(); i++) {
 			double value = table.getDataRow(i).get(attribute);
 			if (Double.isNaN(value)) {
 				buffer.set(i, null);
 			} else {
-				buffer.set(i, ((long) value) / MILLI_SECONDS_PER_SECOND);
+				buffer.set(i, ((long) value) / MILLISECONDS_PER_SECOND);
 			}
 		}
 		return buffer.toColumn();
 	}
 
 	private static Column getRealColumn(int size, ExampleTable table, Attribute attribute) {
-		FixedRealBuffer buffer = new FixedRealBuffer(size);
+		RealBuffer buffer = new RealBuffer(size, false);
 		for (int i = 0; i < table.size(); i++) {
 			buffer.set(i, table.getDataRow(i).get(attribute));
 		}
@@ -1132,7 +1132,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getIntegerColumn(int size, ExampleTable table, Attribute attribute) {
-		FixedIntegerBuffer intBuffer = new FixedIntegerBuffer(size);
+		IntegerBuffer intBuffer = new IntegerBuffer(size, false);
 		for (int i = 0; i < table.size(); i++) {
 			intBuffer.set(i, table.getDataRow(i).get(attribute));
 		}
