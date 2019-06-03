@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,13 +16,17 @@
  * You should have received a copy of the GNU Affero General Public License along with this program. If not, see
  * http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
 import java.io.ObjectStreamException;
 import java.time.Instant;
 import java.util.Iterator;
 
 import com.rapidminer.adaption.belt.IOTable;
+import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.reader.MixedRow;
+import com.rapidminer.belt.reader.MixedRowReader;
+import com.rapidminer.belt.reader.Readers;
 import com.rapidminer.example.Attributes;
 import com.rapidminer.example.Example;
 import com.rapidminer.example.ExampleSet;
@@ -46,28 +50,6 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	private enum ReadType {
 		NUMERIC, NOMINAL, DATETIME;
 	}
-
-	/**
-	 * Function from {@link MixedRow} and int to double.
-	 */
-	@FunctionalInterface
-	private interface ToDoubleIntRowFunction {
-
-		double apply(MixedRow row, int index);
-	}
-
-	/**
-	 * Reading function for numeric columns.
-	 */
-	private static final ToDoubleIntRowFunction NUMERIC = MixedRow::getNumeric;
-
-	/**
-	 * Reading function for date-time columns.
-	 */
-	private static double getDateTime(MixedRow row, int index) {
-		Instant instant = (Instant) row.getObject(index);
-		return instant == null ? Double.NaN : instant.toEpochMilli();
-	};
 
 	/**
 	 * {@link Table} is not serializable, but we replace it by an example set on serialization anyway, see
@@ -116,7 +98,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Example getExample(int index) {
-		MixedRowReader reader = new MixedRowReader(table.getColumns(), NumericReader.MIN_BUFFER_SIZE);
+		MixedRowReader reader = Readers.unbufferedMixedRowReader(table);
 		reader.setPosition(index - 1);
 		reader.move();
 		return new Example(new FakeRow(reader, readTypes), header);
@@ -124,7 +106,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Iterator<Example> iterator() {
-		MixedRowReader reader = new MixedRowReader(table.getColumns());
+		MixedRowReader reader = Readers.mixedRowReader(table);
 		return new Iterator<Example>() {
 			@Override
 			public boolean hasNext() {
@@ -162,6 +144,14 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 				default:
 					return row.getNumeric(index);
 			}
+		}
+
+		/**
+		 * Reading function for date-time columns.
+		 */
+		private static double getDateTime(MixedRow row, int index) {
+			Instant instant = (Instant) row.getObject(index);
+			return instant == null ? Double.NaN : instant.toEpochMilli();
 		}
 
 		@Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,10 +16,14 @@
  * You should have received a copy of the GNU Affero General Public License along with this program. If not, see
  * http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
+import java.util.Arrays;
 import java.util.Objects;
 
+import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.column.Columns;
+import com.rapidminer.belt.column.Dictionary;
 import com.rapidminer.example.ExampleSet;
 
 
@@ -45,12 +49,40 @@ public enum TableViewCreator{
 	 */
 	public ExampleSet createView(Table table) {
 		Objects.requireNonNull(table, "table must not be null");
+
+		table = removeDictionaryGaps(table);
+
 		for (int i = 0; i < table.width(); i++) {
 			if (table.column(i).type().id() == Column.TypeId.DATE_TIME) {
 				return new DatetimeTableWrapper(table);
 			}
 		}
 		return new DoubleTableWrapper(table);
+	}
+
+	/**
+	 * Replaces categorical columns with gap containing dictionaries with remapped ones.
+	 */
+	private Table removeDictionaryGaps(Table table) {
+		Column[] newColumns = null;
+		int index = 0;
+		for (Column column : table.getColumns()) {
+			if (column.type().id() == Column.TypeId.NOMINAL) {
+				Dictionary<String> dict = column.getDictionary(String.class);
+				if (dict.size() != dict.maximalIndex()) {
+					if (newColumns == null) {
+						newColumns = Arrays.copyOf(table.getColumns(), table.width());
+					}
+					newColumns[index] = Columns.compactDictionary(column);
+				}
+			}
+			index++;
+		}
+		if (newColumns == null) {
+			return table;
+		} else {
+			return new Table(newColumns, table.labelArray(), table.getMetaData());
+		}
 	}
 
 }

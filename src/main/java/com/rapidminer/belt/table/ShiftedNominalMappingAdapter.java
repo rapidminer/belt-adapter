@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License along with this program. If not, see
  * http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -30,7 +30,7 @@ import com.rapidminer.example.table.NominalMapping;
 /**
  * Adapts a {@code List<String>} representing a belt nominal mapping to an immutable {@link NominalMapping}. The {@link
  * NominalMapping} is implemented analogously to {@link com.rapidminer.example.table.PolynominalMapping} but creates the
- * symbol to index mapping only when necessary. In contrast to {@link NominalMappingAdapter} this class shifts the input
+ * symbol to index mapping only when necessary. In contrast to {@link com.rapidminer.belt.table.NominalMappingAdapter} this class shifts the input
  * mapping by leaving out the {@code null} entry at the first place.
  *
  * @author Gisa Meier

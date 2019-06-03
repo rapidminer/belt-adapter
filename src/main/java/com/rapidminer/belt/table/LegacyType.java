@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License along with this program.
  * If not, see http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
 import com.rapidminer.belt.util.ColumnMetaData;
 import com.rapidminer.tools.Ontology;

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,13 +16,17 @@
  * You should have received a copy of the GNU Affero General Public License along with this program. If not, see
  * http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
 import java.io.ObjectStreamException;
 import java.util.Iterator;
 import java.util.List;
 
 import com.rapidminer.adaption.belt.IOTable;
+import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.reader.NumericRow;
+import com.rapidminer.belt.reader.NumericRowReader;
+import com.rapidminer.belt.reader.Readers;
 import com.rapidminer.example.Attribute;
 import com.rapidminer.example.AttributeRole;
 import com.rapidminer.example.Attributes;
@@ -87,7 +91,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Example getExample(int index) {
-		NumericRowReader reader = new NumericRowReader(table.getColumns(), NumericReader.MIN_BUFFER_SIZE);
+		NumericRowReader reader = Readers.unbufferedNumericRowReader(table);
 		reader.setPosition(index - 1);
 		reader.move();
 		return new Example(new FakeRow(reader, nominal), header);
@@ -95,7 +99,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Iterator<Example> iterator() {
-		NumericRowReader reader = new NumericRowReader(table.getColumns());
+		NumericRowReader reader = Readers.numericRowReader(table);
 		return new Iterator<Example>() {
 			@Override
 			public boolean hasNext() {
@@ -165,7 +169,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	}
 
 	/**
-	 * This creates a header example set from the table. In contrast to {@link BeltConverter#convertHeader(Table)}, the
+	 * This creates a header example set from the table. In contrast to {@link com.rapidminer.belt.table.BeltConverter#convertHeader(Table)}, the
 	 * nominal mappings are shifted so that they do not contain {@code null}. This requires an adjustment of the
 	 * category indices.
 	 *
@@ -179,11 +183,11 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 		int i = 0;
 		for (String label : labels) {
 			Column column = table.column(i);
-			Attribute attribute = AttributeFactory.createAttribute(label, BeltConverter.getValueType(table, label, i));
+			Attribute attribute = AttributeFactory.createAttribute(label, com.rapidminer.belt.table.BeltConverter.getValueType(table, label, i));
 			attribute.setTableIndex(i);
 			attributes.add(new AttributeRole(attribute));
 			if (attribute.isNominal()) {
-				List<String> mapping = column.getDictionary(String.class);
+				List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary(String.class));
 				attribute.setMapping(new ShiftedNominalMappingAdapter(mapping));
 			}
 			String role = BeltConverter.convertRole(table, label);

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License along with this program. If not, see
  * http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,7 +39,7 @@ import com.rapidminer.example.table.PolynominalMapping;
 
 
 /**
- * Tests the {@link NominalMappingAdapter}.
+ * Tests the {@link com.rapidminer.belt.table.NominalMappingAdapter}.
  *
  * @author Gisa Meier
  */
@@ -50,7 +50,7 @@ public class NominalMappingAdapterTest {
 	public static class Comparison {
 
 
-		private final NominalMappingAdapter adaptedMapping;
+		private final com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping;
 		private final PolynominalMapping polynominalMapping;
 
 		private static final String ONE = "one";
@@ -74,7 +74,7 @@ public class NominalMappingAdapterTest {
 					mapping = Collections.singletonList(null);
 					break;
 			}
-			adaptedMapping = new NominalMappingAdapter(mapping);
+			adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(mapping);
 			polynominalMapping = getPolynomialMapping(mapping);
 		}
 
@@ -145,103 +145,103 @@ public class NominalMappingAdapterTest {
 
 		@Test(expected = AttributeTypeException.class)
 		public void testMapIndexNegative() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			adaptedMapping.mapIndex(-1);
 		}
 
 		@Test(expected = AttributeTypeException.class)
 		public void testMapIndexBigger() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			adaptedMapping.mapIndex(3);
 		}
 
 		@Test(expected = UnsupportedOperationException.class)
 		public void testMapStringNotContained() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			adaptedMapping.mapString("four");
 		}
 
 		@Test(expected = UnsupportedOperationException.class)
 		public void testSetMapping() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			adaptedMapping.setMapping("val", 1);
 		}
 
 		@Test(expected = UnsupportedOperationException.class)
 		public void testSortMapping() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			adaptedMapping.sortMappings();
 		}
 
 		@Test(expected = UnsupportedOperationException.class)
 		public void testClear() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			adaptedMapping.clear();
 		}
 
 		@Test
 		public void testGetPositiveIndex() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			assertEquals(2, adaptedMapping.getPositiveIndex());
 		}
 
 		@Test
 		public void testGetNegativeIndex() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			assertEquals(1, adaptedMapping.getNegativeIndex());
 		}
 
 		@Test(expected = AttributeTypeException.class)
 		public void testNoNegativeIndexSize() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one"));
 			adaptedMapping.getNegativeIndex();
 		}
 
 		@Test(expected = AttributeTypeException.class)
 		public void testNoNegativeIndex() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, null, null));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, null, null));
 			adaptedMapping.getNegativeIndex();
 		}
 
 		@Test(expected = AttributeTypeException.class)
 		public void testNoPositiveIndex() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", null));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", null));
 			adaptedMapping.getPositiveIndex();
 		}
 
 		@Test(expected = AttributeTypeException.class)
 		public void testNoPositiveIndexNoNegative() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, null, null));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, null, null));
 			adaptedMapping.getPositiveIndex();
 		}
 
 		@Test
 		public void testGetPositiveString() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			assertEquals("two", adaptedMapping.getPositiveString());
 		}
 
 		@Test
 		public void testGetNegativeString() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
 			assertEquals("one", adaptedMapping.getNegativeString());
 		}
 
 		@Test
 		public void testNotEqualsSize() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
-			assertFalse(adaptedMapping.equals(new NominalMappingAdapter(Arrays.asList(null, "one"))));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			assertFalse(adaptedMapping.equals(new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one"))));
 		}
 
 		@Test
 		public void testNotEqualsDifferentValue() {
-			NominalMappingAdapter adaptedMapping = new NominalMappingAdapter(Arrays.asList(null, "one", "two"));
-			assertFalse(adaptedMapping.equals(new NominalMappingAdapter(Arrays.asList(null, "one", "three"))));
+			com.rapidminer.belt.table.NominalMappingAdapter adaptedMapping = new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "two"));
+			assertFalse(adaptedMapping.equals(new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList(null, "one", "three"))));
 		}
 
 		@Test(expected = IllegalArgumentException.class)
 		public void testNotBeltMapping() {
-			new NominalMappingAdapter(Arrays.asList("one", "two"));
+			new com.rapidminer.belt.table.NominalMappingAdapter(Arrays.asList("one", "two"));
 		}
 	}
 }

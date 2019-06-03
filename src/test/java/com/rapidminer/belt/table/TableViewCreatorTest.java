@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License along with this program. If not, see
  * http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
 import static org.junit.Assert.assertArrayEquals;
 
@@ -27,7 +27,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
@@ -35,16 +34,19 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Future;
-import java.util.stream.StreamSupport;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.rapidminer.belt.buffer.CategoricalBuffer;
+import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.column.ColumnTypes;
+import com.rapidminer.belt.column.Columns;
+import com.rapidminer.belt.util.Belt;
 import com.rapidminer.core.concurrency.ConcurrencyContext;
 import com.rapidminer.core.concurrency.ExecutionStoppedException;
 import com.rapidminer.example.Attribute;
 import com.rapidminer.example.Attributes;
-import com.rapidminer.example.Example;
 import com.rapidminer.example.ExampleSet;
 import com.rapidminer.example.Statistics;
 import com.rapidminer.example.table.AttributeFactory;
@@ -55,7 +57,7 @@ import com.rapidminer.tools.Ontology;
 
 
 /**
- * Tests the {@link TableViewCreator}.
+ * Tests the {@link com.rapidminer.belt.table.TableViewCreator}.
  *
  * @author Gisa Meier
  */
@@ -161,8 +163,8 @@ public class TableViewCreatorTest {
 				.withColumnFiller(path, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(3))
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
-		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
+		ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
 
 		RapidAssert.assertEquals(set, view);
 	}
@@ -180,9 +182,9 @@ public class TableViewCreatorTest {
 				.withRole(numeric, Attributes.LABEL_NAME)
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
-		RapidAssert.assertEquals(set, TableViewCreator.INSTANCE.createView(table));
+		RapidAssert.assertEquals(set, com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
 	}
 
 	@Test
@@ -207,9 +209,9 @@ public class TableViewCreatorTest {
 				.withRole(numeric, Attributes.LABEL_NAME)
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
-		RapidAssert.assertEquals(set, TableViewCreator.INSTANCE.createView(table));
+		RapidAssert.assertEquals(set, com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
 	}
 
 	@Test
@@ -241,7 +243,7 @@ public class TableViewCreatorTest {
 				.withRole(numeric, Attributes.LABEL_NAME)
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
 		ExampleSet view1 = new DoubleTableWrapper(table);
 		ExampleSet view2 = new DatetimeTableWrapper(table);
@@ -261,9 +263,9 @@ public class TableViewCreatorTest {
 		Attribute numeric = AttributeFactory.createAttribute("numeric", Ontology.NUMERICAL);
 		ExampleSet set = ExampleSets.from(numeric).withBlankSize(15)
 				.withColumnFiller(numeric, i -> Math.random() > 0.7 ? Double.NaN : Math.random()).build();
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
-		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+		ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
 		view.getExample(4).setValue(numeric, 5);
 	}
 
@@ -274,9 +276,9 @@ public class TableViewCreatorTest {
 				.withColumnFiller(dateTime,
 						i -> Math.random() > 0.7 ? Double.NaN : 1515410698d + Math.floor(Math.random() * 1000))
 				.build();
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
-		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+		ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
 		view.getExample(4).setValue(dateTime, 5);
 	}
 
@@ -302,10 +304,10 @@ public class TableViewCreatorTest {
 				.withRole(numeric, Attributes.LABEL_NAME)
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 		set.recalculateAllAttributeStatistics();
 
-		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+		ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
 		view.recalculateAllAttributeStatistics();
 
 		List<Double> setStatistics = new ArrayList<>();
@@ -360,10 +362,10 @@ public class TableViewCreatorTest {
 				.withRole(numeric, Attributes.WEIGHT_NAME)
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 		set.recalculateAllAttributeStatistics();
 
-		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+		ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
 		view.recalculateAllAttributeStatistics();
 
 		List<Double> setStatistics = new ArrayList<>();
@@ -418,8 +420,8 @@ public class TableViewCreatorTest {
 				.withRole(numeric, Attributes.LABEL_NAME)
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
-		byte[] serialized = serialize(TableViewCreator.INSTANCE.createView(table));
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
+		byte[] serialized = serialize(com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
 		Object deserialized = deserialize(serialized);
 
 		RapidAssert.assertEquals(set, (ExampleSet) deserialized);
@@ -448,8 +450,57 @@ public class TableViewCreatorTest {
 				.withRole(numeric, Attributes.LABEL_NAME)
 				.build();
 
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
-		byte[] serialized = serialize(TableViewCreator.INSTANCE.createView(table));
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
+		byte[] serialized = serialize(com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
+		Object deserialized = deserialize(serialized);
+
+		RapidAssert.assertEquals(set, (ExampleSet) deserialized);
+	}
+
+	@Test
+	public void testSerializationGaps() throws IOException, ClassNotFoundException {
+		CategoricalBuffer<String> buffer = BufferAccessor.get().newUInt8Buffer(21);
+		for (int i = 0; i < buffer.size(); i++) {
+			buffer.set(i, "value" + i);
+		}
+		buffer.set(7, null);
+		buffer.set(5, null);
+		CategoricalBuffer<String> buffer2 = BufferAccessor.get().newUInt8Buffer(21);
+		for (int i = 0; i < buffer2.size(); i++) {
+			buffer2.set(i, "val" + i);
+		}
+		buffer2.set(3, null);
+		buffer2.set(5, null);
+		Column column = Columns.removeUnusedDictionaryValues(buffer.toColumn(ColumnTypes.NOMINAL),
+				Columns.CleanupOption.REMOVE, Belt.defaultContext());
+		Column column2 = Columns.removeUnusedDictionaryValues(buffer2.toColumn(ColumnTypes.NOMINAL),
+				Columns.CleanupOption.REMOVE, Belt.defaultContext());
+
+		CategoricalBuffer<String> buffer3 = BufferAccessor.get().newUInt2Buffer(21);
+		buffer3.set(0, "bla");
+		for (int i = 0; i < buffer3.size(); i++) {
+			buffer3.set(i, "blup");
+		}
+		buffer3.set(10, null);
+		CategoricalBuffer<String> buffer4 = BufferAccessor.get().newUInt2Buffer(21);
+		buffer4.set(0, "bla");
+		for (int i = 0; i < buffer.size(); i++) {
+			buffer4.set(i, "blup");
+		}
+		buffer4.set(10, null);
+
+		Column bla = Columns.removeUnusedDictionaryValues(buffer3.toBooleanColumn(ColumnTypes.NOMINAL, "bla"),
+				Columns.CleanupOption.REMOVE, Belt.defaultContext());
+		Column blup = Columns.removeUnusedDictionaryValues(buffer4.toBooleanColumn(ColumnTypes.NOMINAL, "blup"),
+				Columns.CleanupOption.REMOVE, Belt.defaultContext());
+
+
+		Table table = Builders.newTableBuilder(21).add("first", column)
+				.add("second", column2).add("bla", bla).add("blup", blup)
+				.build(Belt.defaultContext());
+
+		ExampleSet set = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
+		byte[] serialized = serialize(set);
 		Object deserialized = deserialize(serialized);
 
 		RapidAssert.assertEquals(set, (ExampleSet) deserialized);
@@ -474,9 +525,9 @@ public class TableViewCreatorTest {
 		Attribute numeric = AttributeFactory.createAttribute("numeric", Ontology.NUMERICAL);
 		ExampleSet set = ExampleSets.from(numeric).withBlankSize(15)
 				.withColumnFiller(numeric, i -> Math.random() > 0.7 ? Double.NaN : Math.random()).build();
-		Table table = BeltConverter.convert(set, CONTEXT).getTable();
+		Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
-		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+		ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
 		ExampleSet clone = (ExampleSet) view.clone();
 		RapidAssert.assertEquals(view, clone);
 	}

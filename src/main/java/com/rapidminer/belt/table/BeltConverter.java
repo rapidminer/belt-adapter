@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2018 by RapidMiner and the contributors
+ * Copyright (C) 2001-2019 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -16,11 +16,10 @@
  * You should have received a copy of the GNU Affero General Public License along with this program.
  * If not, see http://www.gnu.org/licenses/.
  */
-package com.rapidminer.belt;
+package com.rapidminer.belt.table;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,7 +31,22 @@ import java.util.concurrent.ExecutionException;
 
 import com.rapidminer.adaption.belt.ContextAdapter;
 import com.rapidminer.adaption.belt.IOTable;
+import com.rapidminer.belt.buffer.Buffers;
+import com.rapidminer.belt.buffer.CategoricalBuffer;
+import com.rapidminer.belt.buffer.DateTimeBuffer;
+import com.rapidminer.belt.buffer.NumericBuffer;
+import com.rapidminer.belt.column.BooleanDictionary;
+import com.rapidminer.belt.column.CategoricalColumn;
+import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.column.ColumnTypes;
+import com.rapidminer.belt.column.Columns;
+import com.rapidminer.belt.column.Dictionary;
+import com.rapidminer.belt.reader.CategoricalReader;
+import com.rapidminer.belt.reader.NumericReader;
+import com.rapidminer.belt.reader.ObjectReader;
+import com.rapidminer.belt.reader.Readers;
 import com.rapidminer.belt.util.ColumnMetaData;
+import com.rapidminer.belt.util.ColumnReference;
 import com.rapidminer.belt.util.ColumnRole;
 import com.rapidminer.belt.util.IntegerFormats;
 import com.rapidminer.belt.util.IntegerFormats.Format;
@@ -94,6 +108,16 @@ public final class BeltConverter {
 	 * String into which {@link ColumnRole#METADATA} is converted
 	 */
 	private static final String META_DATA_NAME = "meta_data";
+
+	/**
+	 * Prefix of the role names of confidence attributes
+	 */
+	private static final String CONFIDENCE_PREFIX = Attributes.CONFIDENCE_NAME + "_";
+
+	/**
+	 * The length of the {@link #CONFIDENCE_PREFIX}
+	 */
+	private static final int CONFIDENCE_PREFIX_LENGHT = CONFIDENCE_PREFIX.length();
 
 	static {
 		SAFE_ATTRIBUTES.add(DateAttribute.class);
@@ -187,7 +211,7 @@ public final class BeltConverter {
 			attribute.setTableIndex(i);
 			attributes.add(new AttributeRole(attribute));
 			if (attribute.isNominal()) {
-				List<String> mapping = column.getDictionary(String.class);
+				List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary(String.class));
 				attribute.setMapping(new NominalMappingAdapter(mapping));
 			}
 			String role = convertRole(table, label);
@@ -287,6 +311,17 @@ public final class BeltConverter {
 	}
 
 	/**
+	 * While studio does not explicitly forbid {@code null} values in dictionaries, some places assume that there are
+	 * none, so we adjust all belt dictionaries with this problem.
+	 *
+	 * @param column
+	 * 		a nominal column
+	 */
+	private static Column removeGapsFromDictionary(Column column) {
+		return Columns.compactDictionary(column);
+	}
+
+	/**
 	 * Roles for ExampleSets must be unique. If the converted roles are not, we need to make them. For now this cannot
 	 * happen.
 	 */
@@ -375,7 +410,13 @@ public final class BeltConverter {
 			if (legacyRole != null) {
 				return legacyRole.role();
 			} else if (role == ColumnRole.SCORE) {
-				return Attributes.CONFIDENCE_NAME;
+				ColumnReference reference = table.getFirstMetaData(label, ColumnReference.class);
+				if (reference != null && reference.getValue() != null) {
+					return CONFIDENCE_PREFIX + reference.getValue();
+				} else {
+					return Attributes.CONFIDENCE_NAME;
+				}
+
 			} else if (role == ColumnRole.METADATA) {
 				return META_DATA_NAME;
 			}
@@ -407,9 +448,12 @@ public final class BeltConverter {
 		if (Ontology.ATTRIBUTE_VALUE_TYPE.isA(derivedOntology, legacyOntology)) {
 			return true;
 		}
-		// if binominal is requested for a polynominal derived type, check dictionary size
+		// if binominal is requested for a polynominal derived type, check dictionary size and if only positive
 		if (legacyOntology == Ontology.BINOMINAL && derivedOntology == Ontology.POLYNOMINAL) {
-			return column.getDictionary(String.class).size() <= 3;
+			Dictionary<String> dictionary = column.getDictionary(String.class);
+			return dictionary.size() <= 2 &&
+					//BinominalMapping can have no positive but not no negative
+					!(dictionary.isBoolean() && dictionary.hasPositive() && !dictionary.hasNegative());
 		}
 		// derived ontology is a nominal subtype and legacy ontology, too
 		if (Ontology.ATTRIBUTE_VALUE_TYPE.isA(derivedOntology, Ontology.NOMINAL) && Ontology.ATTRIBUTE_VALUE_TYPE
@@ -444,7 +488,7 @@ public final class BeltConverter {
 				case Ontology.NUMERICAL:
 				case Ontology.REAL:
 				case Ontology.INTEGER:
-					NumericReader reader = new NumericReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+					NumericReader reader = Readers.numericReader(column, column.size());
 					for (Example example : set) {
 						example.setValue(attribute, reader.read());
 					}
@@ -462,7 +506,7 @@ public final class BeltConverter {
 
 	private static void copyToDateTime(ExampleSet set, Attribute attribute, Column column) {
 		ObjectReader<Instant> reader =
-				new ObjectReader<>(column, Instant.class, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+				Readers.objectReader(column, Instant.class);
 		for (Example example : set) {
 			Instant read = reader.read();
 			if (read == null) {
@@ -474,8 +518,10 @@ public final class BeltConverter {
 	}
 
 	private static void copyToNominal(ExampleSet set, Attribute attribute, Column column) {
+		column = removeGapsFromDictionary(column);
+
 		copyNewToOldMapping(attribute, column);
-		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+		CategoricalReader reader = Readers.categoricalReader(column);
 		for (Example example : set) {
 			int read = reader.read();
 			if (read == CategoricalReader.MISSING_CATEGORY) {
@@ -487,11 +533,14 @@ public final class BeltConverter {
 	}
 
 	private static void copyToBinominal(ExampleSet set, Attribute attribute, Column column) {
-		List<String> mapping = column.getDictionary(String.class);
-		if (column.hasCapability(Column.Capability.BOOLEAN)) {
+		column = removeGapsFromDictionary(column);
+
+		Dictionary<String> dictionary = column.getDictionary(String.class);
+		List<String> mapping = ColumnAccessor.get().getDictionaryList(dictionary);
+		if (dictionary.isBoolean()) {
 			// check if last value is positive
-			if (column.toBoolean(mapping.size() - 1)) {
-				copyNegativePositive(set, attribute, column, mapping);
+			if (dictionary.getPositiveIndex() == 2 || !dictionary.hasPositive()) {
+				copyNegativePositive(set, attribute, column, dictionary);
 			} else {
 				copyPositiveNegative(set, attribute, column, mapping);
 			}
@@ -501,7 +550,7 @@ public final class BeltConverter {
 	}
 
 	/**
-	 * Copy binominals from table to mapping in case the mapping contains first the postive, then the negative value.
+	 * Copy binominals from table to mapping in case the mapping contains first the positive, then the negative value.
 	 */
 	private static void copyPositiveNegative(ExampleSet set, Attribute attribute, Column column, List<String>
 			mapping) {
@@ -512,7 +561,7 @@ public final class BeltConverter {
 		//the first mapped value is negative
 		legacyMapping.mapString(mapping.get(negativeIndex));
 		legacyMapping.mapString(mapping.get(positiveIndex));
-		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+		CategoricalReader reader = Readers.categoricalReader(column);
 		for (Example example : set) {
 			int read = reader.read();
 			if (read == negativeIndex) {
@@ -528,13 +577,14 @@ public final class BeltConverter {
 	/**
 	 * Copy binominals from table to mapping in case the mapping contains first the negative, then the positive value.
 	 */
-	private static void copyNegativePositive(ExampleSet set, Attribute attribute, Column column, List<String>
+	private static void copyNegativePositive(ExampleSet set, Attribute attribute, Column column, Dictionary<String>
 			mapping) {
 		NominalMapping legacyMapping = attribute.getMapping();
 		//the first mapped value is negative, the order is kept
-		legacyMapping.mapString(mapping.get(mapping.size() - 2));
-		legacyMapping.mapString(mapping.get(mapping.size() - 1));
-		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+		for (Dictionary.Entry<String> value : mapping) {
+			legacyMapping.mapString(value.getValue());
+		}
+		CategoricalReader reader = Readers.categoricalReader(column);
 		for (Example example : set) {
 			int read = reader.read();
 			if (read == CategoricalReader.MISSING_CATEGORY) {
@@ -559,7 +609,8 @@ public final class BeltConverter {
 			case REAL:
 				return Ontology.REAL;
 			case NOMINAL:
-				if (column.hasCapability(Column.Capability.BOOLEAN)) {
+				Dictionary<Object> dictionary = column.getDictionary(Object.class);
+				if (dictionary.isBoolean() && !(dictionary.hasPositive() && !dictionary.hasNegative())) {
 					return Ontology.BINOMINAL;
 				}
 				return Ontology.POLYNOMINAL;
@@ -600,7 +651,7 @@ public final class BeltConverter {
 				case Ontology.INTEGER:
 					copier.add(() -> {
 						NumericReader reader =
-								new NumericReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+								Readers.numericReader(column);
 						for (int row = 0; row < columnTable.size(); row++) {
 							columnTable.getDataRow(row).set(attribute, reader.read());
 						}
@@ -632,8 +683,7 @@ public final class BeltConverter {
 
 	private static Void copyDateTimeColumnToRows(ColumnarExampleTable columnTable, Attribute attribute, Column
 			column) {
-		ObjectReader<Instant> reader =
-				new ObjectReader<>(column, Instant.class, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+		ObjectReader<Instant> reader = Readers.objectReader(column, Instant.class);
 		for (int row = 0; row < columnTable.size(); row++) {
 			Instant read = reader.read();
 			if (read == null) {
@@ -647,11 +697,14 @@ public final class BeltConverter {
 
 	private static Void copyBinominalColumnToRows(ColumnarExampleTable columnTable, Attribute attribute,
 												  Column column) {
-		if(column.hasCapability(Column.Capability.BOOLEAN)) {
-			List<String> mapping = column.getDictionary(String.class);
+		column = removeGapsFromDictionary(column);
+
+		Dictionary<String> dictionary = column.getDictionary(String.class);
+		if(dictionary.isBoolean()) {
+			List<String> mapping = ColumnAccessor.get().getDictionaryList(dictionary);
 			// check if last value is positive
-			if (column.toBoolean(mapping.size() - 1)) {
-				copyNegativePositiveToRows(columnTable, attribute, column, mapping);
+			if (dictionary.getPositiveIndex() == 2 || !dictionary.hasPositive()) {
+				copyNegativePositiveToRows(columnTable, attribute, column, dictionary);
 			} else {
 				copyPositiveNegativeToRows(columnTable, attribute, column, mapping);
 
@@ -676,7 +729,7 @@ public final class BeltConverter {
 		//the first mapped value is negative
 		legacyMapping.mapString(mapping.get(negativeIndex));
 		legacyMapping.mapString(mapping.get(positiveIndex));
-		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+		CategoricalReader reader = Readers.categoricalReader(column);
 		for (int row = 0; row < columnTable.size(); row++) {
 			int read = reader.read();
 			if (read == negativeIndex) {
@@ -693,12 +746,13 @@ public final class BeltConverter {
 	 * Copy binominals from table to mapping in case the mapping contains first the negative, then the positive value.
 	 */
 	private static void copyNegativePositiveToRows(ColumnarExampleTable columnTable, Attribute attribute,
-												   Column column, List<String> mapping) {
+												   Column column, Dictionary<String> mapping) {
 		//the first mapped value is negative, the order is kept
 		NominalMapping legacyMapping = attribute.getMapping();
-		legacyMapping.mapString(mapping.get(mapping.size() - 2));
-		legacyMapping.mapString(mapping.get(mapping.size() - 1));
-		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+		for (Dictionary.Entry<String> value : mapping) {
+			legacyMapping.mapString(value.getValue());
+		}
+		CategoricalReader reader = Readers.categoricalReader(column);
 		for (int row = 0; row < columnTable.size(); row++) {
 			int read = reader.read();
 			if (read == CategoricalReader.MISSING_CATEGORY) {
@@ -710,8 +764,10 @@ public final class BeltConverter {
 	}
 
 	private static Void copyNominalColumnToRows(ColumnarExampleTable columnTable, Attribute attribute, Column column) {
+		column = removeGapsFromDictionary(column);
+
 		copyNewToOldMapping(attribute, column);
-		CategoricalReader reader = new CategoricalReader(column, NumericReader.DEFAULT_BUFFER_SIZE, column.size());
+		CategoricalReader reader = Readers.categoricalReader(column);
 		for (int row = 0; row < columnTable.size(); row++) {
 			int read = reader.read();
 			if (read == CategoricalReader.MISSING_CATEGORY) {
@@ -724,7 +780,7 @@ public final class BeltConverter {
 	}
 
 	private static void copyNewToOldMapping(Attribute attribute, Column column) {
-		List<String> mapping = column.getDictionary(String.class);
+		List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary(String.class));
 		NominalMapping legacyMapping = attribute.getMapping();
 		for (int j = 1; j < mapping.size(); j++) {
 			legacyMapping.mapString(mapping.get(j));
@@ -737,6 +793,7 @@ public final class BeltConverter {
 	private static Table sequentialConvert(ExampleSet exampleSet, ConcurrencyContext context) {
 		int size = exampleSet.size();
 		TableBuilder builder = Builders.newTableBuilder(size);
+		Attribute prediction = exampleSet.getAttributes().getPredictedLabel();
 		for (Iterator<AttributeRole> allRoles = exampleSet.getAttributes().allAttributeRoles(); allRoles.hasNext(); ) {
 			AttributeRole role = allRoles.next();
 			Attribute attribute = role.getAttribute();
@@ -745,8 +802,17 @@ public final class BeltConverter {
 				String specialName = role.getSpecialName();
 				ColumnRole beltRole = convert(specialName);
 				builder.addMetaData(attribute.getName(), beltRole);
-				if (beltRole == ColumnRole.METADATA || beltRole == ColumnRole.SCORE) {
+				if (beltRole == ColumnRole.METADATA) {
 					builder.addMetaData(attribute.getName(), new LegacyRole(specialName));
+				} else if (beltRole == ColumnRole.SCORE) {
+					String predictionName = prediction == null ? null : prediction.getName();
+					if (specialName.startsWith(CONFIDENCE_PREFIX)) {
+						builder.addMetaData(attribute.getName(),
+								new ColumnReference(predictionName,
+										specialName.substring(CONFIDENCE_PREFIX_LENGHT)));
+					} else {
+						builder.addMetaData(attribute.getName(), new ColumnReference(predictionName));
+					}
 				}
 			}
 		}
@@ -808,7 +874,7 @@ public final class BeltConverter {
 
 
 	private static Column getDateTimeColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		NanosecondDateTimeBuffer buffer = new NanosecondDateTimeBuffer(size, false);
+		DateTimeBuffer buffer = Buffers.dateTimeBuffer(size, true, false);
 		int i = 0;
 		for (Example example : exampleSet) {
 			double value = example.getValue(attribute);
@@ -824,7 +890,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getDateColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		SecondDateTimeBuffer buffer = new SecondDateTimeBuffer(size, false);
+		DateTimeBuffer buffer = Buffers.dateTimeBuffer(size, false, false);
 		int i = 0;
 		for (Example example : exampleSet) {
 			double value = example.getValue(attribute);
@@ -838,7 +904,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getIntegerColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		IntegerBuffer intBuffer = new IntegerBuffer(size, false);
+		NumericBuffer intBuffer = Buffers.integerBuffer(size, false);
 		int j = 0;
 		for (Example example : exampleSet) {
 			intBuffer.set(j++, example.getValue(attribute));
@@ -847,7 +913,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getRealColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		RealBuffer buffer = new RealBuffer(size, false);
+		NumericBuffer buffer = Buffers.realBuffer(size, false);
 		int i = 0;
 		for (Example example : exampleSet) {
 			buffer.set(i++, example.getValue(attribute));
@@ -861,13 +927,21 @@ public final class BeltConverter {
 	 */
 	private static CategoricalColumn<String> getBinominalColumn(ExampleSet exampleSet, int size, Attribute attribute) {
 		NominalMapping legacyMapping = attribute.getMapping();
-		if (legacyMapping.getPositiveString() == null || legacyMapping.getNegativeString() == null
-				|| legacyMapping.getPositiveString().equals(legacyMapping.getNegativeString())) {
+		if (legacyMapping.getPositiveString() != null && (legacyMapping.getNegativeString() == null
+				|| legacyMapping.getPositiveString().equals(legacyMapping.getNegativeString()))) {
 			// Incompatible with Belt's 2Bit columns
 			return getBufferColumn(exampleSet, size, attribute);
 		}
-
-		List<String> mapping = Arrays.asList(null, legacyMapping.getNegativeString(), legacyMapping.getPositiveString());
+		List<String> mapping = new ArrayList<>(3);
+		mapping.add(null);
+		String negativeString = legacyMapping.getNegativeString();
+		if (negativeString != null) {
+			mapping.add(negativeString);
+		}
+		String positiveString = legacyMapping.getPositiveString();
+		if (positiveString != null) {
+			mapping.add(positiveString);
+		}
 		byte[] data = new byte[size % 4 == 0 ? size / 4 : size / 4 + 1];
 
 		int i = 0;
@@ -881,7 +955,12 @@ public final class BeltConverter {
 
 		PackedIntegers packed = new PackedIntegers(data, Format.UNSIGNED_INT2, size);
 		//convert to a boolean column
-		return new SimpleCategoricalColumn<>(ColumnTypes.NOMINAL, packed, mapping, legacyMapping.getPositiveIndex()+1);
+		int positiveIndex = legacyMapping.getPositiveIndex() + 1;
+		if (positiveIndex >= mapping.size()) {
+			//there is no positive value, only a negative one
+			positiveIndex = BooleanDictionary.NO_ENTRY;
+		}
+		return ColumnAccessor.get().newCategoricalColumn(ColumnTypes.NOMINAL, packed, mapping, positiveIndex);
 	}
 
 	/**
@@ -911,14 +990,14 @@ public final class BeltConverter {
 				data[i++] = (int) value + 1;
 			}
 		}
-		return new SimpleCategoricalColumn<>(ColumnTypes.NOMINAL, data, mapping);
+		return ColumnAccessor.get().newCategoricalColumn(ColumnTypes.NOMINAL, data, mapping);
 	}
 
 	/**
 	 * Copies a nominal column from the example set using a nominal buffer.
 	 */
 	private static CategoricalColumn<String> getBufferColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		Int32CategoricalBuffer<String> nominalBuffer = new Int32CategoricalBuffer<>(size);
+		CategoricalBuffer<String> nominalBuffer = BufferAccessor.get().newInt32Buffer(size);
 		int j = 0;
 		NominalMapping mapping = attribute.getMapping();
 		for (Example example : exampleSet) {
@@ -929,8 +1008,7 @@ public final class BeltConverter {
 				nominalBuffer.set(j++, mapping.mapIndex((int) value));
 			}
 		}
-		nominalBuffer.freeze();
-		return new SimpleCategoricalColumn<>(ColumnTypes.NOMINAL, nominalBuffer.getData(), nominalBuffer.getMapping());
+		return nominalBuffer.toColumn(ColumnTypes.NOMINAL);
 	}
 
 	/**
@@ -941,6 +1019,7 @@ public final class BeltConverter {
 		List<String> labels = new ArrayList<>();
 		List<Callable<Column>> futureColumns = new ArrayList<>();
 		Map<String, List<ColumnMetaData>> meta = new HashMap<>();
+		Attribute predictionAttribute = exampleSet.getAttributes().getPredictedLabel();
 		for (Iterator<AttributeRole> allRoles = exampleSet.getAttributes().allAttributeRoles(); allRoles.hasNext(); ) {
 			AttributeRole role = allRoles.next();
 
@@ -950,7 +1029,7 @@ public final class BeltConverter {
 			createDataFuturesAndStoreType(exampleSet, size, futureColumns, attribute, meta);
 
 			if (role.isSpecial()) {
-				storeRole(role, attribute, meta);
+				storeRole(role, attribute, meta, predictionAttribute);
 			}
 		}
 		return buildTable(futureColumns, labels, meta, context);
@@ -1020,6 +1099,7 @@ public final class BeltConverter {
 		List<Callable<Column>> futureColumns = new ArrayList<>();
 		Map<String, List<ColumnMetaData>> meta = new HashMap<>();
 		ExampleTable table = exampleSet.getExampleTable();
+		Attribute prediction = exampleSet.getAttributes().getPredictedLabel();
 		for (Iterator<AttributeRole> allRoles = exampleSet.getAttributes().allAttributeRoles(); allRoles.hasNext(); ) {
 
 			AttributeRole role = allRoles.next();
@@ -1028,7 +1108,7 @@ public final class BeltConverter {
 
 			createTableFuturesAndStoreType(size, futureColumns, meta, table, attribute);
 			if (role.isSpecial()) {
-				storeRole(role, attribute, meta);
+				storeRole(role, attribute, meta, prediction);
 			}
 		}
 		return buildTable(futureColumns, labels, meta, context);
@@ -1038,14 +1118,23 @@ public final class BeltConverter {
 	 * Stores the associated belt role and, if not all the info can be captured by the belt role, stores the original
 	 * role name.
 	 */
-	private static void storeRole(AttributeRole role, Attribute attribute, Map<String, List<ColumnMetaData>> meta) {
+	private static void storeRole(AttributeRole role, Attribute attribute, Map<String, List<ColumnMetaData>> meta,
+								  Attribute prediction) {
 		String specialName = role.getSpecialName();
 		ColumnRole beltRole = convert(specialName);
 		List<ColumnMetaData> columnMeta =
 				meta.computeIfAbsent(attribute.getName(), s -> new ArrayList<>(2));
 		columnMeta.add(beltRole);
-		if (beltRole == ColumnRole.METADATA || beltRole == ColumnRole.SCORE) {
+		if (beltRole == ColumnRole.METADATA) {
 			columnMeta.add(new LegacyRole(specialName));
+		} else if (beltRole == ColumnRole.SCORE) {
+			String predictionName = prediction == null ? null : prediction.getName();
+			if (specialName.startsWith(CONFIDENCE_PREFIX)) {
+				columnMeta.add(new ColumnReference(predictionName,
+						specialName.substring(CONFIDENCE_PREFIX_LENGHT)));
+			} else {
+				columnMeta.add(new ColumnReference(predictionName));
+			}
 		}
 	}
 
@@ -1096,7 +1185,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getNanosecondDateColumn(int size, ExampleTable table, Attribute attribute) {
-		NanosecondDateTimeBuffer buffer = new NanosecondDateTimeBuffer(size, false);
+		DateTimeBuffer buffer = Buffers.dateTimeBuffer(size, true, false);
 		for (int i = 0; i < table.size(); i++) {
 			double value = table.getDataRow(i).get(attribute);
 			if (Double.isNaN(value)) {
@@ -1111,7 +1200,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getSecondDateColumn(int size, ExampleTable table, Attribute attribute) {
-		SecondDateTimeBuffer buffer = new SecondDateTimeBuffer(size, false);
+		DateTimeBuffer buffer = Buffers.dateTimeBuffer(size, false, false);
 		for (int i = 0; i < table.size(); i++) {
 			double value = table.getDataRow(i).get(attribute);
 			if (Double.isNaN(value)) {
@@ -1124,7 +1213,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getRealColumn(int size, ExampleTable table, Attribute attribute) {
-		RealBuffer buffer = new RealBuffer(size, false);
+		NumericBuffer buffer = Buffers.realBuffer(size, false);
 		for (int i = 0; i < table.size(); i++) {
 			buffer.set(i, table.getDataRow(i).get(attribute));
 		}
@@ -1132,7 +1221,7 @@ public final class BeltConverter {
 	}
 
 	private static Column getIntegerColumn(int size, ExampleTable table, Attribute attribute) {
-		IntegerBuffer intBuffer = new IntegerBuffer(size, false);
+		NumericBuffer intBuffer = Buffers.integerBuffer(size, false);
 		for (int i = 0; i < table.size(); i++) {
 			intBuffer.set(i, table.getDataRow(i).get(attribute));
 		}
@@ -1145,13 +1234,21 @@ public final class BeltConverter {
 	 */
 	private static Column getBinominalColumn(ExampleTable table, int size, Attribute attribute) {
 		NominalMapping legacyMapping = attribute.getMapping();
-		if (legacyMapping.getPositiveString() == null || legacyMapping.getNegativeString() == null
-				|| legacyMapping.getPositiveString().equals(legacyMapping.getNegativeString())) {
+		if (legacyMapping.getPositiveString() != null && (legacyMapping.getNegativeString() == null
+				|| legacyMapping.getPositiveString().equals(legacyMapping.getNegativeString()))) {
 			// Incompatible with Belt's 2Bit columns
 			return getBufferColumn(table, size, attribute);
 		}
-
-		List<String> mapping = Arrays.asList(null, legacyMapping.getNegativeString(), legacyMapping.getPositiveString());
+		List<String> mapping = new ArrayList<>(3);
+		mapping.add(null);
+		String negativeString = legacyMapping.getNegativeString();
+		if (negativeString != null) {
+			mapping.add(negativeString);
+		}
+		String positiveString = legacyMapping.getPositiveString();
+		if (positiveString != null) {
+			mapping.add(positiveString);
+		}
 		byte[] data = new byte[size % 4 == 0 ? size / 4 : size / 4 + 1];
 
 		for (int i = 0; i < size; i++) {
@@ -1163,7 +1260,12 @@ public final class BeltConverter {
 
 		PackedIntegers packed = new PackedIntegers(data, Format.UNSIGNED_INT2, size);
 		// create boolean column
-		return new SimpleCategoricalColumn<>(ColumnTypes.NOMINAL, packed, mapping, legacyMapping.getPositiveIndex()+1);
+		int positiveIndex = legacyMapping.getPositiveIndex() + 1;
+		if (positiveIndex >= mapping.size()) {
+			//there is no positive value, only a negative one
+			positiveIndex = BooleanDictionary.NO_ENTRY;
+		}
+		return ColumnAccessor.get().newCategoricalColumn(ColumnTypes.NOMINAL, packed, mapping, positiveIndex);
 	}
 
 	/**
@@ -1192,14 +1294,14 @@ public final class BeltConverter {
 				data[i] = (int) value + 1;
 			}
 		}
-		return new SimpleCategoricalColumn<>(ColumnTypes.NOMINAL, data, mapping);
+		return ColumnAccessor.get().newCategoricalColumn(ColumnTypes.NOMINAL, data, mapping);
 	}
 
 	/**
 	 * Copies a nominal column from the example table using a nominal buffer.
 	 */
 	private static Column getBufferColumn(ExampleTable table, int size, Attribute attribute) {
-		Int32CategoricalBuffer<String> nominalBuffer = new Int32CategoricalBuffer<>(size);
+		CategoricalBuffer<String> nominalBuffer = BufferAccessor.get().newInt32Buffer(size);
 		NominalMapping mapping = attribute.getMapping();
 		for (int i = 0; i < size; i++) {
 			double value = table.getDataRow(i).get(attribute);
@@ -1209,8 +1311,7 @@ public final class BeltConverter {
 				nominalBuffer.set(i, mapping.mapIndex((int) value));
 			}
 		}
-		nominalBuffer.freeze();
-		return new SimpleCategoricalColumn<>(ColumnTypes.NOMINAL, nominalBuffer.getData(), nominalBuffer.getMapping());
+		return nominalBuffer.toColumn(ColumnTypes.NOMINAL);
 	}
 
 	/**
