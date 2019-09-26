@@ -71,6 +71,7 @@ import com.rapidminer.example.table.NumericalAttribute;
 import com.rapidminer.example.table.PolynominalAttribute;
 import com.rapidminer.example.table.internal.ColumnarExampleTable;
 import com.rapidminer.example.utils.ExampleSets;
+import com.rapidminer.tools.LogService;
 import com.rapidminer.tools.Ontology;
 
 
@@ -189,6 +190,7 @@ public final class BeltConverter {
 		}
 		IOTable tableObject = new IOTable(table);
 		tableObject.getAnnotations().addAll(exampleSet.getAnnotations());
+		tableObject.setSource(exampleSet.getSource());
 		return tableObject;
 	}
 
@@ -264,12 +266,12 @@ public final class BeltConverter {
 		Attributes allAttributes = set.getAttributes();
 		for (String label : labels) {
 			String studioRole = convertRole(table, label);
-			if (studioRole != null) {
-				checkUnique(allAttributes, studioRole);
+			if (studioRole != null && checkUnique(allAttributes, studioRole)) {
 				allAttributes.setSpecialAttribute(allAttributes.get(label), studioRole);
 			}
 		}
 		set.getAnnotations().addAll(tableObject.getAnnotations());
+		set.setSource(tableObject.getSource());
 		return set;
 	}
 
@@ -301,12 +303,12 @@ public final class BeltConverter {
 		Attributes allAttributes = set.getAttributes();
 		for (String label : labels) {
 			String studioRole = convertRole(table, label);
-			if (studioRole != null) {
-				checkUnique(allAttributes, studioRole);
+			if (studioRole != null && checkUnique(allAttributes, studioRole)) {
 				allAttributes.setSpecialAttribute(allAttributes.get(label), studioRole);
 			}
 		}
 		set.getAnnotations().addAll(tableObject.getAnnotations());
+		set.setSource(tableObject.getSource());
 		return set;
 	}
 
@@ -322,13 +324,16 @@ public final class BeltConverter {
 	}
 
 	/**
-	 * Roles for ExampleSets must be unique. If the converted roles are not, we need to make them. For now this cannot
-	 * happen.
+	 * Roles for ExampleSets must be unique. If the converted roles are not, we need to make them. For now we ignore
+	 * non-unique roles.
 	 */
-	private static void checkUnique(Attributes allAttributes, String studioRole) {
-		if (allAttributes.findRoleBySpecialName(studioRole) != null) {
-			throw new UnsupportedOperationException("Role names must be unique for now");
+	private static boolean checkUnique(Attributes allAttributes, String studioRole) {
+		boolean unusedRole = allAttributes.findRoleBySpecialName(studioRole) == null;
+		if (!unusedRole) {
+			LogService.getRoot().warning(() -> "Second occurence of role '" + studioRole + "' is dropped since roles " +
+					"in ExampleSets must be unique");
 		}
+		return unusedRole;
 	}
 
 	/**

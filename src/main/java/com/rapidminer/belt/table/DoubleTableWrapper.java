@@ -38,6 +38,7 @@ import com.rapidminer.example.table.AttributeFactory;
 import com.rapidminer.example.table.DataRow;
 import com.rapidminer.example.table.DataRowFactory;
 import com.rapidminer.example.table.ExampleTable;
+import com.rapidminer.tools.LogService;
 
 
 /**
@@ -192,7 +193,14 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 			}
 			String role = BeltConverter.convertRole(table, label);
 			if (role != null) {
-				attributes.setSpecialAttribute(attribute, role);
+				boolean unusedRole = attributes.findRoleBySpecialName(role) == null;
+				if (unusedRole) {
+					// only add the role if it does not exist yet - better lose a role than the whole attribute
+					attributes.setSpecialAttribute(attribute, role);
+				} else {
+					LogService.getRoot().warning(() -> "Second occurence of role '" + role + "' is dropped since roles" +
+							" in ExampleSets must be unique");
+				}
 			}
 			i++;
 		}
