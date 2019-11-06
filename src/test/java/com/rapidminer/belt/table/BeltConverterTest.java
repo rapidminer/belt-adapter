@@ -51,6 +51,7 @@ import com.rapidminer.adaption.belt.IOTable;
 import com.rapidminer.belt.buffer.Buffers;
 import com.rapidminer.belt.buffer.CategoricalBuffer;
 import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.column.ColumnType;
 import com.rapidminer.belt.column.ColumnTypes;
 import com.rapidminer.belt.column.Columns;
 import com.rapidminer.belt.column.Dictionary;
@@ -180,7 +181,7 @@ public class BeltConverterTest {
 		return data;
 	}
 
-	private static double[][] readTableToArray(Table table) {
+	static double[][] readTableToArray(Table table) {
 		double[][] result = new double[table.width()][];
 		Arrays.setAll(result, i -> readColumnToArray(table, i));
 		return result;
@@ -974,6 +975,25 @@ public class BeltConverterTest {
 
 			assertEquals(tableObject.getAnnotations(), set.getAnnotations());
 		}
+
+
+		@Test(expected = BeltConverter.ConversionException.class)
+		public void testCustomColumns() {
+			ColumnType<Integer> customType = ColumnTypes.categoricalType("com.rapidminer.custom.integer",
+					Integer.class, null);
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+					.addCategorical("custom", i -> i, customType)
+					.build(Belt.defaultContext());
+
+			IOTable tableObject = new IOTable(table);
+			try {
+				BeltConverter.convert(tableObject, CONTEXT);
+			} catch (BeltConverter.ConversionException e) {
+				assertEquals("custom", e.getColumnName());
+				assertEquals(customType, e.getType());
+				throw e;
+			}
+		}
 	}
 
 	@RunWith(Parameterized.class)
@@ -1384,6 +1404,23 @@ public class BeltConverterTest {
 			double[][] resultMapping = readExampleSetToArray(remapped);
 			assertArrayEquals(expectedMapping, resultMapping);
 		}
+
+
+		@Test(expected = BeltConverter.ConversionException.class)
+		public void testCustomColumns() {
+			ColumnType<Integer> customType = ColumnTypes.categoricalType("com.rapidminer.custom.integer",
+					Integer.class, null);
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+					.addCategorical("custom", i -> i, customType)
+					.build(Belt.defaultContext());
+			try {
+				BeltConverter.convertHeader(table);
+			} catch (BeltConverter.ConversionException e) {
+				assertEquals("custom", e.getColumnName());
+				assertEquals(customType, e.getType());
+				throw e;
+			}
+		}
 	}
 
 	@RunWith(Parameterized.class)
@@ -1532,6 +1569,22 @@ public class BeltConverterTest {
 			ExampleSet set = BeltConverter.convertSequentially(tableObject);
 
 			assertEquals(tableObject.getAnnotations(), set.getAnnotations());
+		}
+
+		@Test(expected = BeltConverter.ConversionException.class)
+		public void testCustomColumns() {
+			ColumnType<Integer> customType = ColumnTypes.categoricalType("com.rapidminer.custom.integer",
+					Integer.class, null);
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+					.addCategorical("custom", i -> i, customType)
+					.build(Belt.defaultContext());
+			try {
+				BeltConverter.convertSequentially(new IOTable(table));
+			} catch (BeltConverter.ConversionException e) {
+				assertEquals("custom", e.getColumnName());
+				assertEquals(customType, e.getType());
+				throw e;
+			}
 		}
 	}
 

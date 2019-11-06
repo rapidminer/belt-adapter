@@ -38,6 +38,7 @@ import com.rapidminer.belt.buffer.NumericBuffer;
 import com.rapidminer.belt.column.BooleanDictionary;
 import com.rapidminer.belt.column.CategoricalColumn;
 import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.column.ColumnType;
 import com.rapidminer.belt.column.ColumnTypes;
 import com.rapidminer.belt.column.Columns;
 import com.rapidminer.belt.column.Dictionary;
@@ -84,6 +85,36 @@ import com.rapidminer.tools.Ontology;
  * @author Gisa Meier
  */
 public final class BeltConverter {
+
+	/**
+	 * Marker exception for conversion failure from belt {@link Table} to {@link ExampleSet}. Happens only if the belt
+	 * table contains custom columns.
+	 */
+	public static class ConversionException extends UnsupportedOperationException {
+
+		private final String columnName;
+		private final transient ColumnType<?> type;
+
+		private ConversionException(String columnName, ColumnType<?> type) {
+			super("Failed to convert Table because of custom column " + columnName + " of type " + type.customTypeID());
+			this.columnName = columnName;
+			this.type = type;
+		}
+
+		/**
+		 * @return the name of the column that failed to convert
+		 */
+		public String getColumnName() {
+			return columnName;
+		}
+
+		/**
+		 * @return the type of the column that failed to convert
+		 */
+		public ColumnType<?> getType() {
+			return type;
+		}
+	}
 
 	/**
 	 * Message for when non-supported columns types are encountered
@@ -202,6 +233,8 @@ public final class BeltConverter {
 	 * @param table
 	 * 		the table to extract from
 	 * @return a {@link HeaderExampleSet} where the nominal mappings of the attributes are immutable
+	 * @throws ConversionException
+	 * 		if the table cannot be converted because it contains custom columns
 	 */
 	public static HeaderExampleSet convertHeader(Table table) {
 		Attributes attributes = new SimpleAttributes();
@@ -235,6 +268,8 @@ public final class BeltConverter {
 	 * @return a new example set containing the values of the table
 	 * @throws IllegalArgumentException
 	 * 		if table or context is null
+	 * @throws ConversionException
+	 * 		if the table cannot be converted because it contains custom columns
 	 */
 	public static ExampleSet convert(IOTable tableObject, ConcurrencyContext context) {
 		if (tableObject == null) {
@@ -282,6 +317,8 @@ public final class BeltConverter {
 	 * @param tableObject
 	 * 		the table object to convert
 	 * @return the example set
+	 * @throws ConversionException
+	 * 		if the table cannot be converted because it contains custom columns
 	 */
 	public static ExampleSet convertSequentially(IOTable tableObject) {
 		if (tableObject == null) {
@@ -431,10 +468,13 @@ public final class BeltConverter {
 
 	/**
 	 * Gets the value type from the meta data if present or from the table otherwise.
+	 *
+	 * @throws ConversionException
+	 * 		if the column cannot be converted because it is a custom column
 	 */
 	static int getValueType(Table table, String label, int columnIndex) {
 		Column column = table.column(columnIndex);
-		int derivedOntology = convertToOntology(column);
+		int derivedOntology = convertToOntology(column, label);
 		LegacyType legacyType = table.getFirstMetaData(label, LegacyType.class);
 		if (legacyType != null) {
 			int legacyOntology = legacyType.ontology();
@@ -605,9 +645,13 @@ public final class BeltConverter {
 	 *
 	 * @param column
 	 *            the column to convert
+	 * @param columnName
+	 * 			  the name of the column, used for exceptions
 	 * @return the associated ontology
+	 * @throws ConversionException
+	 * 		if the column cannot be converted because it is a custom column
 	 */
-	public static int convertToOntology(Column column) {
+	public static int convertToOntology(Column column, String columnName) {
 		switch (column.type().id()) {
 			case INTEGER:
 				return Ontology.INTEGER;
@@ -625,7 +669,7 @@ public final class BeltConverter {
 				//because of time zone issues, we cannot convert to time
 				return Ontology.INTEGER;
 			default:
-				throw new UnsupportedOperationException(MESSAGE_NON_SUPPORTED);
+				throw new ConversionException(columnName, column.type());
 		}
 	}
 
@@ -1340,4 +1384,5 @@ public final class BeltConverter {
 			}
 		}
 	}
+
 }

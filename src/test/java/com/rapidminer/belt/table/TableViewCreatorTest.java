@@ -19,6 +19,7 @@
 package com.rapidminer.belt.table;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -40,6 +41,7 @@ import org.junit.Test;
 
 import com.rapidminer.belt.buffer.CategoricalBuffer;
 import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.column.ColumnType;
 import com.rapidminer.belt.column.ColumnTypes;
 import com.rapidminer.belt.column.Columns;
 import com.rapidminer.belt.util.Belt;
@@ -544,5 +546,40 @@ public class TableViewCreatorTest {
 		ExampleSet view = TableViewCreator.INSTANCE.createView(table);
 		ExampleSet clone = (ExampleSet) view.clone();
 		RapidAssert.assertEquals(view, clone);
+	}
+
+	@Test(expected = BeltConverter.ConversionException.class)
+	public void testCustomColumns() {
+		ColumnType<Integer> customType = ColumnTypes.categoricalType("com.rapidminer.custom.integer", Integer.class,
+				null);
+		Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+				.addCategorical("custom", i -> i, customType)
+				.build(Belt.defaultContext());
+		TableViewCreator.INSTANCE.createView(table);
+	}
+
+	@Test
+	public void testReplaceCustomColumns() {
+		ColumnType<Double> customType = ColumnTypes.objectType("com.rapidminer.custom.double", Double.class, null);
+		ColumnType<Integer> customType2 = ColumnTypes.categoricalType("com.rapidminer.custom.integer", Integer.class,
+				null);
+		Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0)
+				.addObject("custom", i -> (double) i, customType).addInt("int", i -> 5 * i)
+				.addCategorical("custom2", i -> i, customType2)
+				.build(Belt.defaultContext());
+		Table replaced = TableViewCreator.INSTANCE.replacedCustomsWithError(table);
+		double[] first = new double[11];
+		table.column("real").fill(first, 0);
+		double[] third = new double[11];
+		table.column("int").fill(third, 0);
+		double[] constant = new double[11];
+		Arrays.fill(constant, 1);
+		assertArrayEquals(new double[][]{first, constant, third, constant},
+				BeltConverterTest.readTableToArray(replaced));
+		Object[] message = new Object[1];
+		replaced.column("custom").fill(message, 0);
+		assertEquals("Error: Cannot display custom column of type com.rapidminer.custom.double", message[0]);
+		replaced.column("custom2").fill(message, 0);
+		assertEquals("Error: Cannot display custom column of type com.rapidminer.custom.integer", message[0]);
 	}
 }

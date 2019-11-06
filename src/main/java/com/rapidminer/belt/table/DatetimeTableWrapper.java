@@ -59,6 +59,12 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	private final HeaderExampleSet header;
 	private final ReadType[] readTypes;
 
+	/**
+	 * Creates a wrapper for a table containing datetime columns.
+	 *
+	 * @throws BeltConverter.ConversionException
+	 * 		it the table contains custom columns
+	 */
 	DatetimeTableWrapper(Table table) {
 		this.table = table;
 		this.header = DoubleTableWrapper.getShiftedHeader(table);

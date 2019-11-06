@@ -60,6 +60,12 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	private final HeaderExampleSet header;
 	private final boolean[] nominal;
 
+	/**
+	 * Creates a wrapper for a table not containing datetime columns.
+	 *
+	 * @throws BeltConverter.ConversionException
+	 * 		it the table contains custom columns
+	 */
 	DoubleTableWrapper(Table table) {
 		this.table = table;
 		this.header = getShiftedHeader(table);
@@ -170,13 +176,16 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	}
 
 	/**
-	 * This creates a header example set from the table. In contrast to {@link com.rapidminer.belt.table.BeltConverter#convertHeader(Table)}, the
-	 * nominal mappings are shifted so that they do not contain {@code null}. This requires an adjustment of the
+	 * This creates a header example set from the table. In contrast to
+	 * {@link com.rapidminer.belt.table.BeltConverter#convertHeader(Table)},
+	 * the nominal mappings are shifted so that they do not contain {@code null}. This requires an adjustment of the
 	 * category indices.
 	 *
 	 * @param table
 	 * 		the table to convert
 	 * @return a header example set
+	 * @throws BeltConverter.ConversionException
+	 * 		it the table contains custom columns
 	 */
 	static HeaderExampleSet getShiftedHeader(Table table) {
 		Attributes attributes = new SimpleAttributes();

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import com.rapidminer.belt.column.Column;
+import com.rapidminer.belt.column.ColumnTypes;
 import com.rapidminer.belt.column.Columns;
 import com.rapidminer.belt.column.Dictionary;
 import com.rapidminer.example.ExampleSet;
@@ -45,7 +46,10 @@ public enum TableViewCreator{
 	 * @param table
 	 * 		the table
 	 * @return a view example set
-	 * @throws NullPointerException if table is {@code null}
+	 * @throws NullPointerException
+	 * 		if table is {@code null}
+	 * @throws BeltConverter.ConversionException
+	 * 		if the table cannot be converted because it contains custom columns
 	 */
 	public ExampleSet createView(Table table) {
 		Objects.requireNonNull(table, "table must not be null");
@@ -59,6 +63,28 @@ public enum TableViewCreator{
 		}
 		return new DoubleTableWrapper(table);
 	}
+
+	/**
+	 * Creates a new table where custom columns are replaced with nominal columns that are constant one error value.
+	 *
+	 * @param table
+	 * 		the table to adjust
+	 * @return a table without any custom columns
+	 */
+	public Table replacedCustomsWithError(Table table) {
+		Column[] columns = table.getColumns();
+		Column[] newColumns = Arrays.copyOf(columns, columns.length);
+		for (int i = 0; i < columns.length; i++) {
+			Column oldColumn = columns[i];
+			if (oldColumn.type().id() == Column.TypeId.CUSTOM) {
+				Column newColumn = ColumnAccessor.get().newSingleValueCategoricalColumn(ColumnTypes.NOMINAL, "Error:" +
+						" Cannot display custom column of type " + oldColumn.type().customTypeID(), oldColumn.size());
+				newColumns[i] = newColumn;
+			}
+		}
+		return new Table(newColumns, table.labelArray(), table.getMetaData());
+	}
+
 
 	/**
 	 * Replaces categorical columns with gap containing dictionaries with remapped ones.
