@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2019 by RapidMiner and the contributors
+ * Copyright (C) 2001-2020 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -27,6 +27,7 @@ import com.rapidminer.belt.column.Column;
 import com.rapidminer.belt.reader.NumericRow;
 import com.rapidminer.belt.reader.NumericRowReader;
 import com.rapidminer.belt.reader.Readers;
+import com.rapidminer.belt.reader.SmallReaders;
 import com.rapidminer.example.Attribute;
 import com.rapidminer.example.AttributeRole;
 import com.rapidminer.example.Attributes;
@@ -38,7 +39,6 @@ import com.rapidminer.example.table.AttributeFactory;
 import com.rapidminer.example.table.DataRow;
 import com.rapidminer.example.table.DataRowFactory;
 import com.rapidminer.example.table.ExampleTable;
-import com.rapidminer.tools.LogService;
 
 
 /**
@@ -64,7 +64,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	 * Creates a wrapper for a table not containing datetime columns.
 	 *
 	 * @throws BeltConverter.ConversionException
-	 * 		it the table contains custom columns
+	 * 		it the table contains non-standard columns
 	 */
 	DoubleTableWrapper(Table table) {
 		this.table = table;
@@ -98,7 +98,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Example getExample(int index) {
-		NumericRowReader reader = Readers.unbufferedNumericRowReader(table);
+		NumericRowReader reader = SmallReaders.unbufferedNumericRowReader(table);
 		reader.setPosition(index - 1);
 		reader.move();
 		return new Example(new FakeRow(reader, nominal), header);
@@ -185,7 +185,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	 * 		the table to convert
 	 * @return a header example set
 	 * @throws BeltConverter.ConversionException
-	 * 		it the table contains custom columns
+	 * 		it the table contains non-standard columns
 	 */
 	static HeaderExampleSet getShiftedHeader(Table table) {
 		Attributes attributes = new SimpleAttributes();
@@ -193,26 +193,17 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 		int i = 0;
 		for (String label : labels) {
 			Column column = table.column(i);
-			Attribute attribute = AttributeFactory.createAttribute(label, com.rapidminer.belt.table.BeltConverter.getValueType(table, label, i));
+			Attribute attribute = AttributeFactory.createAttribute(label,
+					com.rapidminer.belt.table.BeltConverter.getValueType(table, label, i));
 			attribute.setTableIndex(i);
 			attributes.add(new AttributeRole(attribute));
 			if (attribute.isNominal()) {
-				List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary(String.class));
+				List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary());
 				attribute.setMapping(new ShiftedNominalMappingAdapter(mapping));
-			}
-			String role = BeltConverter.convertRole(table, label);
-			if (role != null) {
-				boolean unusedRole = attributes.findRoleBySpecialName(role) == null;
-				if (unusedRole) {
-					// only add the role if it does not exist yet - better lose a role than the whole attribute
-					attributes.setSpecialAttribute(attribute, role);
-				} else {
-					LogService.getRoot().warning(() -> "Second occurence of role '" + role + "' is dropped since roles" +
-							" in ExampleSets must be unique");
-				}
 			}
 			i++;
 		}
+		BeltConverter.convertRoles(table, attributes);
 		return new HeaderExampleSet(attributes);
 	}
 

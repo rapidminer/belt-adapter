@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2019 by RapidMiner and the contributors
+ * Copyright (C) 2001-2020 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -27,6 +27,7 @@ import com.rapidminer.belt.column.Column;
 import com.rapidminer.belt.reader.MixedRow;
 import com.rapidminer.belt.reader.MixedRowReader;
 import com.rapidminer.belt.reader.Readers;
+import com.rapidminer.belt.reader.SmallReaders;
 import com.rapidminer.example.Attributes;
 import com.rapidminer.example.Example;
 import com.rapidminer.example.ExampleSet;
@@ -48,7 +49,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	private static final long serialVersionUID = 548442173952040494L;
 
 	private enum ReadType {
-		NUMERIC, NOMINAL, DATETIME;
+		NUMERIC, NOMINAL, DATETIME
 	}
 
 	/**
@@ -63,7 +64,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	 * Creates a wrapper for a table containing datetime columns.
 	 *
 	 * @throws BeltConverter.ConversionException
-	 * 		it the table contains custom columns
+	 * 		it the table contains non-standard columns
 	 */
 	DatetimeTableWrapper(Table table) {
 		this.table = table;
@@ -79,7 +80,6 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 			}
 		}
 	}
-
 
 	public DatetimeTableWrapper(DatetimeTableWrapper wrapper) {
 		this.table = wrapper.table;
@@ -104,7 +104,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 
 	@Override
 	public Example getExample(int index) {
-		MixedRowReader reader = Readers.unbufferedMixedRowReader(table);
+		MixedRowReader reader = SmallReaders.unbufferedMixedRowReader(table);
 		reader.setPosition(index - 1);
 		reader.move();
 		return new Example(new FakeRow(reader, readTypes), header);

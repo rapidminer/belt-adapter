@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2019 by RapidMiner and the contributors
+ * Copyright (C) 2001-2020 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -18,18 +18,41 @@
  */
 package com.rapidminer.belt.table;
 
-import java.util.Arrays;
-import java.util.Objects;
+import static com.rapidminer.belt.table.BeltConverter.ConversionException;
+import static com.rapidminer.belt.table.BeltConverter.STANDARD_TYPES;
+import static com.rapidminer.belt.table.BeltConverter.convertRoles;
+import static com.rapidminer.belt.table.BeltConverter.getValueType;
+import static com.rapidminer.belt.table.BeltConverter.storeBeltMetaDataInExampleSetUserData;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
+
+import com.rapidminer.adaption.belt.IOTable;
+import com.rapidminer.belt.buffer.Buffers;
+import com.rapidminer.belt.buffer.NominalBuffer;
+import com.rapidminer.belt.column.CategoricalColumn;
 import com.rapidminer.belt.column.Column;
-import com.rapidminer.belt.column.ColumnTypes;
+import com.rapidminer.belt.column.ColumnType;
 import com.rapidminer.belt.column.Columns;
 import com.rapidminer.belt.column.Dictionary;
+import com.rapidminer.example.Attribute;
+import com.rapidminer.example.AttributeRole;
+import com.rapidminer.example.Attributes;
 import com.rapidminer.example.ExampleSet;
+import com.rapidminer.example.SimpleAttributes;
+import com.rapidminer.example.table.AttributeFactory;
+import com.rapidminer.example.table.BinominalAttribute;
+import com.rapidminer.example.table.BinominalMapping;
+import com.rapidminer.example.table.NominalMapping;
+import com.rapidminer.tools.Ontology;
 
 
 /**
- * Creates a view of a {@link Table} that can be used for visualization purposes and reading as an {@link ExampleSet}.
+ * Creates a view of a {@link Table} that can be used for visualization purposes and reading as an {@link ExampleSet}
+ * or creates a view that does a conversion on the fly if necessary.
  *
  * Please note that this class is not part of any public API and might be modified or removed in future releases without
  * prior warning.
@@ -41,6 +64,16 @@ public enum TableViewCreator{
 	INSTANCE;
 
 	/**
+	 * Message for constant replacement of advanced columns in {@link ConvertOnWriteExampleTable}
+	 */
+	static final String CANNOT_DISPLAY_MESSAGE = "Cannot display advanced column";
+
+	/**
+	 * Constant mapping with only an error message entry
+	 */
+	private static final NominalMapping CANNOT_DISPLAY = new ShiftedNominalMappingAdapter(Arrays.asList(null, CANNOT_DISPLAY_MESSAGE));
+
+	/**
 	 * Wraps the {@link Table} into an {@link ExampleSet} in order to visualize it.
 	 *
 	 * @param table
@@ -48,13 +81,13 @@ public enum TableViewCreator{
 	 * @return a view example set
 	 * @throws NullPointerException
 	 * 		if table is {@code null}
-	 * @throws BeltConverter.ConversionException
-	 * 		if the table cannot be converted because it contains custom columns
+	 * @throws ConversionException
+	 * 		if the table cannot be converted because it contains advanced columns
 	 */
 	public ExampleSet createView(Table table) {
 		Objects.requireNonNull(table, "table must not be null");
 
-		table = removeDictionaryGaps(table);
+		table = adjustDictionaries(table);
 
 		for (int i = 0; i < table.width(); i++) {
 			if (table.column(i).type().id() == Column.TypeId.DATE_TIME) {
@@ -65,20 +98,95 @@ public enum TableViewCreator{
 	}
 
 	/**
-	 * Creates a new table where custom columns are replaced with nominal columns that are constant one error value.
+	 * Wraps the {@link Table} of the {@link IOTable} into an {@link ExampleSet} so that adding additional attributes
+	 * works without conversion.
+	 *
+	 * @param ioTable
+	 * 		the table to view as an {@link ExampleSet}
+	 * @param throwOnAdvanced
+	 * 		whether to throw an exception in case of advanced columns. If this is {@code false} the advanced column is
+	 * 		viewed as a nominal column with a constant error message and it is recovered on the conversion back to {@link
+	 *        IOTable}
+	 * @return a view of the ioTable that only does a conversion on a write operation into existing table data
+	 * @throws ConversionException
+	 * 		if the table contains advanced columns and thrownOnAdvanced is {@code true}
+	 * @since 0.7
+	 */
+	public ExampleSet convertOnWriteView(IOTable ioTable, boolean throwOnAdvanced) {
+		Table table = ioTable.getTable();
+		table = TableViewCreator.INSTANCE.adjustDictionaries(table);
+		Attributes attributes = new SimpleAttributes();
+		List<Attribute> attributeList = new ArrayList<>();
+		List<String> labels = table.labels();
+		int numberOfDatetime = 0;
+		int i = 0;
+		for (String label : labels) {
+			Column column = table.column(i);
+			Attribute attribute;
+			if (STANDARD_TYPES.contains(column.type().id())) {
+				attribute = AttributeFactory.createAttribute(label,
+						getValueType(table, label, i));
+				if (attribute.isNominal()) {
+					setMapping(column, attribute);
+				} else if (attribute.isDateTime()) {
+					numberOfDatetime++;
+				}
+			} else {
+				if (throwOnAdvanced) {
+					throw new ConversionException(label, column.type());
+				} else {
+					attribute = AttributeFactory.createAttribute(label, Ontology.POLYNOMINAL);
+					attribute.setMapping(CANNOT_DISPLAY);
+				}
+			}
+			attribute.setTableIndex(i);
+			attributes.add(new AttributeRole(attribute));
+			attributeList.add(attribute);
+
+			i++;
+		}
+		convertRoles(table, attributes);
+		ExampleSet set = new ConvertOnWriteExampleTable(table, attributeList, numberOfDatetime).createExampleSet();
+		adjustAttributes(attributes, attributeList, set);
+		set.getAnnotations().addAll(ioTable.getAnnotations());
+		set.setSource(ioTable.getSource());
+		storeBeltMetaDataInExampleSetUserData(table, set);
+		return set;
+	}
+
+
+	/**
+	 * Creates a new table where advanced columns are replaced with nominal columns that are constant one error value.
 	 *
 	 * @param table
 	 * 		the table to adjust
-	 * @return a table without any custom columns
+	 * @return a table without any advanced columns
 	 */
-	public Table replacedCustomsWithError(Table table) {
+	public Table replacedAdvancedWithError(Table table) {
+		return replaceAdvancedWithErrorMessage(table, oldColumn -> "Error:" +
+				" Cannot display advanced column of " + oldColumn.type());
+	}
+
+	/**
+	 * Creates a new table where advanced columns are replaced with nominal columns that are constant one error value.
+	 *
+	 * @param table
+	 * 		the table to adjust
+	 * @param errorMessage
+	 * 		the error message to use
+	 * @return a table without any advanced columns
+	 */
+	Table replaceAdvancedWithErrorMessage(Table table, Function<Column, String> errorMessage) {
+		if (table.width() == 0) {
+			return table;
+		}
 		Column[] columns = table.getColumns();
 		Column[] newColumns = Arrays.copyOf(columns, columns.length);
 		for (int i = 0; i < columns.length; i++) {
 			Column oldColumn = columns[i];
-			if (oldColumn.type().id() == Column.TypeId.CUSTOM) {
-				Column newColumn = ColumnAccessor.get().newSingleValueCategoricalColumn(ColumnTypes.NOMINAL, "Error:" +
-						" Cannot display custom column of type " + oldColumn.type().customTypeID(), oldColumn.size());
+			if (!STANDARD_TYPES.contains(oldColumn.type().id())) {
+				Column newColumn = ColumnAccessor.get().newSingleValueCategoricalColumn(ColumnType.NOMINAL,
+						errorMessage.apply(oldColumn), oldColumn.size());
 				newColumns[i] = newColumn;
 			}
 		}
@@ -87,19 +195,34 @@ public enum TableViewCreator{
 
 
 	/**
-	 * Replaces categorical columns with gap containing dictionaries with remapped ones.
+	 * Replaces categorical columns with gap containing dictionaries with remapped ones and remapps columns with
+	 * boolean dictionaries that have not the negative index as first index.
+	 *
+	 * Package private for tests.
 	 */
-	private Table removeDictionaryGaps(Table table) {
+	Table adjustDictionaries(Table table) {
 		Column[] newColumns = null;
 		int index = 0;
 		for (Column column : table.getColumns()) {
 			if (column.type().id() == Column.TypeId.NOMINAL) {
-				Dictionary<String> dict = column.getDictionary(String.class);
+				Dictionary dict = column.getDictionary();
 				if (dict.size() != dict.maximalIndex()) {
 					if (newColumns == null) {
 						newColumns = Arrays.copyOf(table.getColumns(), table.width());
 					}
 					newColumns[index] = Columns.compactDictionary(column);
+					dict = newColumns[index].getDictionary();
+
+				}
+				if (dict.isBoolean() && dict.getNegativeIndex() != 1 && dict.size() > 0) {
+					//binominal attributes need to have the first index as negative
+
+					CategoricalColumn rightDictionaryColumn = getColumnWithAdjustedDictionary(dict);
+
+					if (newColumns == null) {
+						newColumns = Arrays.copyOf(table.getColumns(), table.width());
+					}
+					newColumns[index] = Columns.changeDictionary(column, rightDictionaryColumn);
 				}
 			}
 			index++;
@@ -108,6 +231,62 @@ public enum TableViewCreator{
 			return table;
 		} else {
 			return new Table(newColumns, table.labelArray(), table.getMetaData());
+		}
+	}
+
+	/**
+	 *  Creates a column with a dictionary that has the negative value of the boolean dictionary first.
+	 */
+	private CategoricalColumn getColumnWithAdjustedDictionary(Dictionary dict) {
+		//This a bit of a hack that uses implementation details of the categorical buffer
+		NominalBuffer rightDictionaryBuffer = Buffers.nominalBuffer(2, 2);
+		String negativeValue = dict.get(dict.getNegativeIndex());
+		if (negativeValue == null) {
+			negativeValue = "false";
+		}
+		rightDictionaryBuffer.set(0, negativeValue);
+		String positiveValue = dict.get(dict.getPositiveIndex());
+		rightDictionaryBuffer.set(1, positiveValue);
+		return rightDictionaryBuffer.toBooleanColumn(positiveValue);
+	}
+
+
+	/**
+	 * Converts the dictionary of the column to a nominal mapping and sets it for the attribute.
+	 */
+	private void setMapping(Column column, Attribute attribute) {
+		List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary());
+		if (attribute instanceof BinominalAttribute) {
+			BinominalMapping binMapping = new BinominalMapping();
+			if (mapping.size() > 1) {
+				binMapping.mapString(mapping.get(1));
+			}
+			if (mapping.size() > 2) {
+				binMapping.mapString(mapping.get(2));
+			}
+			attribute.setMapping(binMapping);
+		} else {
+			attribute.setMapping(new ShiftedNominalMappingAdapter(mapping));
+		}
+	}
+
+	/**
+	 * in order to keep the order of the attributes and not have specials at the end we add them again in the order of
+	 * the attributeList.
+	 */
+	private void adjustAttributes(Attributes attributes, List<Attribute> attributeList, ExampleSet set) {
+		Attributes orderedAttributes = set.getAttributes();
+		orderedAttributes.clearRegular();
+		orderedAttributes.clearSpecial();
+		for (Attribute attribute : attributeList) {
+			AttributeRole role = attributes.getRole(attribute);
+			if (!role.isSpecial()) {
+				orderedAttributes.addRegular(attribute);
+			} else {
+				AttributeRole attributeRole = new AttributeRole(attribute);
+				attributeRole.setSpecial(role.getSpecialName());
+				orderedAttributes.add(attributeRole);
+			}
 		}
 	}
 

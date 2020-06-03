@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2019 by RapidMiner and the contributors
+ * Copyright (C) 2001-2020 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -28,7 +28,7 @@ import com.rapidminer.tools.Ontology;
  *
  * @author Gisa Meier
  */
-enum LegacyType implements ColumnMetaData {
+public enum LegacyType implements ColumnMetaData {
 
 	NOMINAL(Ontology.NOMINAL),
 	NUMERICAL(Ontology.NUMERICAL),

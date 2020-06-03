@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2019 by RapidMiner and the contributors
+ * Copyright (C) 2001-2020 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -29,7 +29,10 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -49,16 +52,18 @@ import org.junit.runners.Parameterized.Parameters;
 import com.rapidminer.RapidMiner;
 import com.rapidminer.adaption.belt.IOTable;
 import com.rapidminer.belt.buffer.Buffers;
-import com.rapidminer.belt.buffer.CategoricalBuffer;
+import com.rapidminer.belt.buffer.NominalBuffer;
 import com.rapidminer.belt.column.Column;
 import com.rapidminer.belt.column.ColumnType;
-import com.rapidminer.belt.column.ColumnTypes;
 import com.rapidminer.belt.column.Columns;
 import com.rapidminer.belt.column.Dictionary;
+import com.rapidminer.belt.column.type.StringSet;
 import com.rapidminer.belt.reader.CategoricalReader;
 import com.rapidminer.belt.reader.NumericReader;
 import com.rapidminer.belt.reader.Readers;
 import com.rapidminer.belt.util.Belt;
+import com.rapidminer.belt.util.ColumnAnnotation;
+import com.rapidminer.belt.util.ColumnMetaData;
 import com.rapidminer.belt.util.ColumnReference;
 import com.rapidminer.belt.util.ColumnRole;
 import com.rapidminer.core.concurrency.ConcurrencyContext;
@@ -98,6 +103,40 @@ import com.rapidminer.tools.ParameterService;
  */
 @RunWith(Enclosed.class)
 public class BeltConverterTest {
+
+	/**
+	 * Meta data used for testing.
+	 */
+	private static class TestMetaData implements ColumnMetaData {
+
+		private final String someParameter;
+
+		public TestMetaData(String someParameter) {
+			this.someParameter = someParameter;
+		}
+
+		@Override
+		public boolean equals(Object other) {
+			if (this == other) {
+				return true;
+			}
+			if (other == null || getClass() != other.getClass()) {
+				return false;
+			}
+			TestMetaData that = (TestMetaData) other;
+			return Objects.equals(someParameter, that.someParameter);
+		}
+
+		@Override
+		public String type() {
+			return "com.rapidminer.belt.meta.column.testmetadata";
+		}
+
+		@Override
+		public Uniqueness uniqueness() {
+			return Uniqueness.NONE;
+		}
+	}
 
 	private static final ConcurrencyContext CONTEXT = new ConcurrencyContext() {
 
@@ -173,7 +212,7 @@ public class BeltConverterTest {
 	private static String[] readColumnToStringArray(Table table, int column) {
 		String[] data = new String[table.height()];
 		Column col = table.column(column);
-		List<String> categoricalMapping = ColumnAccessor.get().getDictionaryList(col.getDictionary(String.class));
+		List<String> categoricalMapping = ColumnAccessor.get().getDictionaryList(col.getDictionary());
 		CategoricalReader reader = Readers.categoricalReader(col);
 		for (int j = 0; j < table.height(); j++) {
 			data[j] = categoricalMapping.get(reader.read());
@@ -193,7 +232,7 @@ public class BeltConverterTest {
 		return result;
 	}
 
-	private static double[][] readExampleSetToArray(ExampleSet set) {
+	static double[][] readExampleSetToArray(ExampleSet set) {
 		double[][] result = new double[set.getAttributes().size()][];
 		int i = 0;
 		for (Attribute att : set.getAttributes()) {
@@ -322,19 +361,19 @@ public class BeltConverterTest {
 			String[][] expected = readExampleSetToStringArray(set);
 			assertArrayEquals(expected, result);
 
-			Dictionary<String> oneNegative = table.column("oneNegative").getDictionary(String.class);
+			Dictionary oneNegative = table.column("oneNegative").getDictionary();
 			assertTrue(oneNegative.isBoolean());
 			assertFalse(oneNegative.hasPositive());
 			assertEquals(attribute1.getMapping().getNegativeString(), oneNegative.get(oneNegative.getNegativeIndex()));
 			assertEquals(1, oneNegative.size());
 
-			Dictionary<String> empty = table.column("empty").getDictionary(String.class);
+			Dictionary empty = table.column("empty").getDictionary();
 			assertTrue(empty.isBoolean());
 			assertFalse(empty.hasPositive());
 			assertFalse(empty.hasNegative());
 			assertEquals(0, empty.size());
 
-			Dictionary<String> binominal = table.column("binominal").getDictionary(String.class);
+			Dictionary binominal = table.column("binominal").getDictionary();
 			assertTrue(binominal.isBoolean());
 			assertEquals(2, binominal.size());
 			assertEquals(attribute3.getMapping().getNegativeString(), binominal.get(binominal.getNegativeIndex()));
@@ -452,7 +491,7 @@ public class BeltConverterTest {
 					table.labels().stream().map(label -> table.column(label).type().id()).toArray(Column
 							.TypeId[]::new);
 			Column.TypeId[] expected =
-					new Column.TypeId[]{Column.TypeId.NOMINAL, Column.TypeId.REAL, Column.TypeId.INTEGER,
+					new Column.TypeId[]{Column.TypeId.NOMINAL, Column.TypeId.REAL, Column.TypeId.INTEGER_53_BIT,
 							Column.TypeId.REAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL,
 							Column.TypeId.NOMINAL, Column.TypeId.DATE_TIME, Column.TypeId.DATE_TIME,
 							Column.TypeId.DATE_TIME};
@@ -485,7 +524,7 @@ public class BeltConverterTest {
 					table.labels().stream().map(label -> table.column(label).type().id()).toArray(Column
 							.TypeId[]::new);
 			Column.TypeId[] expected =
-					new Column.TypeId[]{Column.TypeId.NOMINAL, Column.TypeId.REAL, Column.TypeId.INTEGER,
+					new Column.TypeId[]{Column.TypeId.NOMINAL, Column.TypeId.REAL, Column.TypeId.INTEGER_53_BIT,
 							Column.TypeId.REAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL,
 							Column.TypeId.NOMINAL, Column.TypeId.DATE_TIME, Column.TypeId.DATE_TIME,
 							Column.TypeId.DATE_TIME};
@@ -511,7 +550,7 @@ public class BeltConverterTest {
 					Attributes.LABEL_NAME, Attributes.PREDICTION_NAME,
 					Attributes.CLUSTER_NAME, Attributes.WEIGHT_NAME, Attributes.BATCH_NAME, Attributes.OUTLIER_NAME,
 					Attributes.CONFIDENCE_NAME,
-					Attributes.CLASSIFICATION_COST, "ignore-me"};
+					Attributes.CLASSIFICATION_COST, "ignore-me", "confidence(yes)", "cluster_1_probability"};
 			List<Attribute> attributes = new ArrayList<>();
 			for (int i = 0; i < roles.length + 1; i++) {
 				attributes.add(AttributeFactory.createAttribute(Ontology.NUMERICAL));
@@ -530,8 +569,7 @@ public class BeltConverterTest {
 					new ColumnRole[]{null, ColumnRole.ID, ColumnRole.SCORE, ColumnRole.LABEL, ColumnRole.PREDICTION,
 							ColumnRole.CLUSTER,
 							ColumnRole.WEIGHT, ColumnRole.BATCH, ColumnRole.OUTLIER, ColumnRole
-							.SCORE,
-							ColumnRole.METADATA, ColumnRole.METADATA};
+							.SCORE,	ColumnRole.METADATA, ColumnRole.METADATA, ColumnRole.SCORE, ColumnRole.METADATA};
 			assertArrayEquals(expected, result);
 
 			com.rapidminer.belt.table.LegacyRole[] legacyResult = table.labels().stream()
@@ -540,8 +578,8 @@ public class BeltConverterTest {
 			com.rapidminer.belt.table.LegacyRole[] legacyExpected =
 					new com.rapidminer.belt.table.LegacyRole[]{null, null, null, null, null, null, null, null, null,
 							null,
-							new com.rapidminer.belt.table.LegacyRole(Attributes.CLASSIFICATION_COST),
-							new com.rapidminer.belt.table.LegacyRole("ignore-me")};
+							new LegacyRole(Attributes.CLASSIFICATION_COST),
+							new LegacyRole("ignore-me"), new LegacyRole("confidence(yes)"), new LegacyRole("cluster_1_probability")};
 			assertArrayEquals(legacyExpected, legacyResult);
 
 			ColumnReference[] references = table.labels().stream()
@@ -551,8 +589,240 @@ public class BeltConverterTest {
 					new ColumnReference[]{null, null,
 							new ColumnReference(set.getAttributes().getPredictedLabel().getName(), "Yes"), null, null,
 							null, null, null, null, new ColumnReference(set.getAttributes().getPredictedLabel().getName()),
-							null, null};
+							null, null, new ColumnReference(set.getAttributes().getPredictedLabel().getName()), null};
 			assertArrayEquals(referencesExpected, references);
+		}
+
+		@Test
+		public void testDuplicateRoles() {
+			ColumnRole[] roles = ColumnRole.values();
+			// build expected example set
+			List<Attribute> attributes = new ArrayList<>();
+			for (ColumnRole role : roles) {
+				String name1 = role.name() + "-1", name2 = role.name() + "-2", name3 = role.name() + "-3";
+				attributes.add(AttributeFactory.createAttribute(name1, Ontology.REAL));
+				attributes.add(AttributeFactory.createAttribute(name2, Ontology.REAL));
+				attributes.add(AttributeFactory.createAttribute(name3, Ontology.REAL));
+			}
+			ExampleSetBuilder exampleSetBuilder = ExampleSets.from(attributes);
+			int attributeIndex = 0;
+			for (ColumnRole role : roles) {
+				String baseName;
+				if (role == ColumnRole.SCORE) {
+					baseName = Attributes.CONFIDENCE_NAME;
+				} else if (role == ColumnRole.METADATA) {
+					baseName = "meta_data";
+				} else {
+					baseName = role.name().toLowerCase(Locale.ROOT);
+				}
+				exampleSetBuilder.withRole(attributes.get(attributeIndex++), baseName);
+				exampleSetBuilder.withRole(attributes.get(attributeIndex++), baseName + "_2");
+				exampleSetBuilder.withRole(attributes.get(attributeIndex++), baseName + "_3");
+			}
+			ExampleSet expectedExampleSet = exampleSetBuilder.build();
+
+			// build expected table
+			TableBuilder tableBuilder = new TableBuilder(0);
+			for (ColumnRole role : roles) {
+				String name1 = role.name() + "-1", name2 = role.name() + "-2", name3 = role.name() + "-3";
+				tableBuilder.addReal(name1, i -> Math.random());
+				tableBuilder.addMetaData(name1, role);
+				tableBuilder.addReal(name2, i -> Math.random());
+				tableBuilder.addMetaData(name2, role);
+				tableBuilder.addReal(name3, i -> Math.random());
+				tableBuilder.addMetaData(name3, role);
+			}
+			Table expectedTable = tableBuilder.build(Belt.defaultContext());
+
+			// convert example set / table
+			ExampleSet convertedExampleSet = BeltConverter.convert(new IOTable(expectedTable), CONTEXT);
+			Table convertedTable = BeltConverter.convert(expectedExampleSet, CONTEXT).getTable();
+
+			// check if results are equal
+			for (ColumnRole role : roles) {
+				String name1 = role.name() + "-1", name2 = role.name() + "-2", name3 = role.name() + "-3";
+				assertEquals(expectedExampleSet.getAttributes().getRole(name1).getSpecialName(),
+						convertedExampleSet.getAttributes().getRole(name1).getSpecialName());
+				assertEquals(expectedExampleSet.getAttributes().getRole(name2).getSpecialName(),
+						convertedExampleSet.getAttributes().getRole(name2).getSpecialName());
+				assertEquals(expectedExampleSet.getAttributes().getRole(name3).getSpecialName(),
+						convertedExampleSet.getAttributes().getRole(name3).getSpecialName());
+			}
+			assertArrayEquals(expectedTable.labels().stream()
+					.map(label -> expectedTable.getFirstMetaData(label, ColumnRole.class))
+					.toArray(ColumnRole[]::new), convertedTable.labels().stream()
+					.map(label -> convertedTable.getFirstMetaData(label, ColumnRole.class))
+					.toArray(ColumnRole[]::new));
+
+			// and convert them again to make sure
+			Table doubleConvertedTable = BeltConverter.convert(convertedExampleSet, CONTEXT).getTable();
+			ExampleSet doubleConvertedExampleSet = BeltConverter.convert(new IOTable(convertedTable), CONTEXT);
+
+			for (ColumnRole role : roles) {
+				String name1 = role.name() + "-1", name2 = role.name() + "-2", name3 = role.name() + "-3";
+				assertEquals(expectedExampleSet.getAttributes().getRole(name1).getSpecialName(),
+						doubleConvertedExampleSet.getAttributes().getRole(name1).getSpecialName());
+				assertEquals(expectedExampleSet.getAttributes().getRole(name2).getSpecialName(),
+						doubleConvertedExampleSet.getAttributes().getRole(name2).getSpecialName());
+				assertEquals(expectedExampleSet.getAttributes().getRole(name3).getSpecialName(),
+						doubleConvertedExampleSet.getAttributes().getRole(name3).getSpecialName());
+			}
+			assertArrayEquals(expectedTable.labels().stream()
+					.map(label -> expectedTable.getFirstMetaData(label, ColumnRole.class))
+					.toArray(ColumnRole[]::new), doubleConvertedTable.labels().stream()
+					.map(label -> doubleConvertedTable.getFirstMetaData(label, ColumnRole.class))
+					.toArray(ColumnRole[]::new));
+		}
+
+		/**
+		 * Some of the belt meta data has no equivalent in the example set representation. Therefore, we store the belt
+		 * meta data in the ExampleSet's user data. This test checks if this is done correctly.
+		 */
+		@Test
+		public void testPreserveBeltMetaData() {
+			// BUILD ORIGINAL TABLE
+			TableBuilder tableBuilder = new TableBuilder(0);
+
+			// add a prediction and two corresponding score columns
+			tableBuilder.addNominal("PredictionColumnOne", i -> i % 2 == 0 ? "YES" : "NO");
+			tableBuilder.addReal("ScoreColumnYES", i -> Math.random());
+			tableBuilder.addReal("ScoreColumnNO", i -> Math.random());
+			tableBuilder.addMetaData("ScoreColumnYES", ColumnRole.SCORE);
+			tableBuilder.addMetaData("ScoreColumnNO", ColumnRole.SCORE);
+			tableBuilder.addMetaData("PredictionColumnOne", ColumnRole.PREDICTION);
+			tableBuilder.addMetaData("PredictionColumnOne", new ColumnAnnotation("This is my wonderful prediction!"));
+			tableBuilder.addMetaData("ScoreColumnYES", new ColumnReference("PredictionColumnOne", "YES"));
+			tableBuilder.addMetaData("ScoreColumnNO", new ColumnReference("PredictionColumnOne", "NO"));
+
+			// add another prediction and two corresponding score columns
+			tableBuilder.addNominal("PredictionColumnTwo", i -> i % 2 == 0 ? "play" : "work");
+			tableBuilder.addReal("ScoreColumnPlay", i -> Math.random());
+			tableBuilder.addReal("ScoreColumnWork", i -> Math.random());
+			tableBuilder.addMetaData("ScoreColumnPlay", ColumnRole.SCORE);
+			tableBuilder.addMetaData("ScoreColumnWork", ColumnRole.SCORE);
+			tableBuilder.addMetaData("PredictionColumnTwo", ColumnRole.PREDICTION);
+			tableBuilder.addMetaData("PredictionColumnTwo", new TestMetaData("A first parameter"));
+			tableBuilder.addMetaData("PredictionColumnTwo", new TestMetaData("A second parameter"));
+			tableBuilder.addMetaData("PredictionColumnTwo", new TestMetaData("A third parameter"));
+			tableBuilder.addMetaData("ScoreColumnWork", new ColumnReference("PredictionColumnTwo", "work"));
+			tableBuilder.addMetaData("ScoreColumnPlay", new ColumnReference("PredictionColumnTwo", "play"));
+
+			Table originalTable = tableBuilder.build(Belt.defaultContext());
+
+			// CHECK CONVERTED EXAMPLE SET
+			ExampleSet convertedExampleSet = BeltConverter.convert(new IOTable(originalTable), CONTEXT);
+			assertEquals("confidence_YES", convertedExampleSet.getAttributes().findRoleByName("ScoreColumnYES").getSpecialName());
+			assertEquals("confidence_NO", convertedExampleSet.getAttributes().findRoleByName("ScoreColumnNO").getSpecialName());
+			assertEquals("confidence_work", convertedExampleSet.getAttributes().findRoleByName("ScoreColumnWork").getSpecialName());
+			assertEquals("confidence_play", convertedExampleSet.getAttributes().findRoleByName("ScoreColumnPlay").getSpecialName());
+			String predictionOneRoleName = convertedExampleSet.getAttributes().findRoleByName("PredictionColumnOne").getSpecialName();
+			String predictionTwoRoleName = convertedExampleSet.getAttributes().findRoleByName("PredictionColumnTwo").getSpecialName();
+			String predictedLabel = convertedExampleSet.getAttributes().getPredictedLabel().getName();
+			assertTrue(predictionOneRoleName.equals("prediction") && predictionTwoRoleName.equals("prediction_2")
+					|| predictionTwoRoleName.equals("prediction") && predictionOneRoleName.equals("prediction_2"));
+			assertTrue(predictedLabel.equals("PredictionColumnOne") || predictedLabel.equals("PredictionColumnTwo"));
+			assertEquals(6, convertedExampleSet.getAttributes().specialSize());
+
+			// CHECK DOUBLE-CONVERTED TABLE
+			Table convertedTable = BeltConverter.convert(convertedExampleSet, CONTEXT).getTable();
+			assertEquals(2, convertedTable.getMetaData().get("PredictionColumnOne").size());
+			assertEquals(4, convertedTable.getMetaData().get("PredictionColumnTwo").size());
+			assertEquals(2, convertedTable.getMetaData().get("ScoreColumnYES").size());
+			assertEquals(2, convertedTable.getMetaData().get("ScoreColumnNO").size());
+			assertEquals(2, convertedTable.getMetaData().get("ScoreColumnPlay").size());
+			assertEquals(2, convertedTable.getMetaData().get("ScoreColumnWork").size());
+			assertEquals(6, convertedTable.width());
+
+			assertEquals(ColumnRole.PREDICTION, convertedTable.getFirstMetaData("PredictionColumnOne", ColumnRole.class));
+			assertEquals(ColumnRole.PREDICTION, convertedTable.getFirstMetaData("PredictionColumnTwo", ColumnRole.class));
+			assertEquals(ColumnRole.SCORE, convertedTable.getFirstMetaData("ScoreColumnYES", ColumnRole.class));
+			assertEquals(ColumnRole.SCORE, convertedTable.getFirstMetaData("ScoreColumnNO", ColumnRole.class));
+			assertEquals(ColumnRole.SCORE, convertedTable.getFirstMetaData("ScoreColumnPlay", ColumnRole.class));
+			assertEquals(ColumnRole.SCORE, convertedTable.getFirstMetaData("ScoreColumnWork", ColumnRole.class));
+
+			assertEquals(new ColumnReference("PredictionColumnOne", "YES"),
+					convertedTable.getFirstMetaData("ScoreColumnYES", ColumnReference.class));
+			assertEquals(new ColumnReference("PredictionColumnOne", "NO"),
+					convertedTable.getFirstMetaData("ScoreColumnNO", ColumnReference.class));
+			assertEquals(new ColumnReference("PredictionColumnTwo", "play"),
+					convertedTable.getFirstMetaData("ScoreColumnPlay", ColumnReference.class));
+			assertEquals(new ColumnReference("PredictionColumnTwo", "work"),
+					convertedTable.getFirstMetaData("ScoreColumnWork", ColumnReference.class));
+
+			assertEquals(new ColumnAnnotation("This is my wonderful prediction!"),
+					convertedTable.getFirstMetaData("PredictionColumnOne", ColumnAnnotation.class));
+
+			List<TestMetaData> testMetaData = convertedTable.getMetaData("PredictionColumnTwo", TestMetaData.class);
+			assertEquals(3, testMetaData.size());
+			assertTrue(testMetaData.contains(new TestMetaData("A first parameter")));
+			assertTrue(testMetaData.contains(new TestMetaData("A second parameter")));
+			assertTrue(testMetaData.contains(new TestMetaData("A third parameter")));
+		}
+
+		/**
+		 * A belt table is converted to example set, an attribute is removed / renamed and then the example set is
+		 * converted back. This test checks that no exception is thrown.
+		 */
+		@Test
+		public void testRemoveAndRenameAttribute() {
+			// BUILD ORIGINAL TABLE
+			TableBuilder tableBuilder = new TableBuilder(0);
+
+			// add a prediction and two corresponding score columns
+			tableBuilder.addNominal("PredictionColumnOne", i -> i % 2 == 0 ? "YES" : "NO");
+			tableBuilder.addReal("ScoreColumnYES", i -> Math.random());
+			tableBuilder.addReal("ScoreColumnNO", i -> Math.random());
+			tableBuilder.addMetaData("ScoreColumnYES", ColumnRole.SCORE);
+			tableBuilder.addMetaData("ScoreColumnNO", ColumnRole.SCORE);
+			tableBuilder.addMetaData("PredictionColumnOne", ColumnRole.PREDICTION);
+			tableBuilder.addMetaData("PredictionColumnOne", new ColumnAnnotation("This is my wonderful prediction!"));
+			tableBuilder.addMetaData("ScoreColumnYES", new ColumnReference("PredictionColumnOne", "YES"));
+			tableBuilder.addMetaData("ScoreColumnNO", new ColumnReference("PredictionColumnOne", "NO"));
+
+			// add another prediction and two corresponding score columns
+			tableBuilder.addNominal("PredictionColumnTwo", i -> i % 2 == 0 ? "play" : "work");
+			tableBuilder.addReal("ScoreColumnPlay", i -> Math.random());
+			tableBuilder.addReal("ScoreColumnWork", i -> Math.random());
+			tableBuilder.addMetaData("ScoreColumnPlay", ColumnRole.SCORE);
+			tableBuilder.addMetaData("ScoreColumnWork", ColumnRole.SCORE);
+			tableBuilder.addMetaData("PredictionColumnTwo", ColumnRole.PREDICTION);
+			tableBuilder.addMetaData("PredictionColumnTwo", new TestMetaData("A first parameter"));
+			tableBuilder.addMetaData("ScoreColumnWork", new ColumnReference("PredictionColumnTwo", "work"));
+			tableBuilder.addMetaData("ScoreColumnPlay", new ColumnReference("PredictionColumnTwo", "play"));
+
+			Table originalTable = tableBuilder.build(Belt.defaultContext());
+
+			// MODIFY CONVERTED EXAMPLE SET
+			ExampleSet convertedExampleSet = BeltConverter.convert(new IOTable(originalTable), CONTEXT);
+			Attributes attributes = convertedExampleSet.getAttributes();
+			attributes.remove(attributes.get("PredictionColumnOne"));
+			attributes.remove(attributes.get("ScoreColumnWork"));
+			attributes.get("PredictionColumnTwo").setName("NewName");
+			assertEquals(4, attributes.specialSize());
+			assertTrue(attributes.contains(attributes.get("NewName")));
+
+			// CHECK DOUBLE-CONVERTED TABLE
+			Table convertedTable = BeltConverter.convert(convertedExampleSet, CONTEXT).getTable();
+			assertFalse(convertedTable.contains("PredictionColumnOne"));
+			assertFalse(convertedTable.contains("ScoreColumnWork"));
+			assertFalse(convertedTable.contains("PredictionColumnTwo"));
+			assertEquals(1, convertedTable.getMetaData().get("NewName").size());
+			assertEquals(2, convertedTable.getMetaData().get("ScoreColumnYES").size());
+			assertEquals(2, convertedTable.getMetaData().get("ScoreColumnNO").size());
+			assertEquals(2, convertedTable.getMetaData().get("ScoreColumnPlay").size());
+			assertEquals(4, convertedTable.width());
+
+			assertEquals(ColumnRole.PREDICTION, convertedTable.getFirstMetaData("NewName", ColumnRole.class));
+			assertEquals(ColumnRole.SCORE, convertedTable.getFirstMetaData("ScoreColumnYES", ColumnRole.class));
+			assertEquals(ColumnRole.SCORE, convertedTable.getFirstMetaData("ScoreColumnNO", ColumnRole.class));
+			assertEquals(ColumnRole.SCORE, convertedTable.getFirstMetaData("ScoreColumnPlay", ColumnRole.class));
+
+			assertEquals(new ColumnReference("PredictionColumnOne", "YES"),
+					convertedTable.getFirstMetaData("ScoreColumnYES", ColumnReference.class));
+			assertEquals(new ColumnReference("PredictionColumnOne", "NO"),
+					convertedTable.getFirstMetaData("ScoreColumnNO", ColumnReference.class));
+			assertEquals(new ColumnReference("PredictionColumnTwo", "play"),
+					convertedTable.getFirstMetaData("ScoreColumnPlay", ColumnReference.class));
 		}
 
 		@Test
@@ -633,7 +903,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testSimple() {
-			Table table = Builders.newTableBuilder(112).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+			Table table = Builders.newTableBuilder(112).addReal("real", i -> 3 * i / 5.0).addInt53Bit("int", i -> 5 * i)
 					.build(Belt.defaultContext());
 
 			ExampleSet set = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -645,17 +915,17 @@ public class BeltConverterTest {
 
 		@Test
 		public void testNominal() {
-			CategoricalBuffer<String> buffer = BufferAccessor.get().newUInt8Buffer(112);
+			NominalBuffer buffer = BufferAccessor.get().newUInt8Buffer(ColumnType.NOMINAL, 112);
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "value" + (i % 5));
 			}
-			CategoricalBuffer<String> buffer2 = BufferAccessor.get().newUInt8Buffer(112);
+			NominalBuffer buffer2 = BufferAccessor.get().newUInt8Buffer(ColumnType.NOMINAL, 112);
 			for (int i = 0; i < buffer2.size(); i++) {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
-					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn())
+					.add("second", buffer2.toColumn())
 					.build(Belt.defaultContext());
 
 			ExampleSet set = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -667,21 +937,21 @@ public class BeltConverterTest {
 
 		@Test
 		public void testNominalGaps() {
-			CategoricalBuffer<String> buffer = Buffers.categoricalBuffer(11);
+			NominalBuffer buffer = Buffers.nominalBuffer(11);
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "value" + i);
 			}
 			buffer.set(7, null);
 			buffer.set(5, null);
-			CategoricalBuffer<String> buffer2 = Buffers.categoricalBuffer(11);
+			NominalBuffer buffer2 = Buffers.nominalBuffer(11);
 			for (int i = 0; i < buffer2.size(); i++) {
 				buffer2.set(i, "val" + i);
 			}
 			buffer2.set(3, null);
 			buffer2.set(5, null);
-			Column column = Columns.removeUnusedDictionaryValues(buffer.toColumn(ColumnTypes.NOMINAL),
+			Column column = Columns.removeUnusedDictionaryValues(buffer.toColumn(),
 					Columns.CleanupOption.REMOVE, Belt.defaultContext());
-			Column column2 = Columns.removeUnusedDictionaryValues(buffer2.toColumn(ColumnTypes.NOMINAL),
+			Column column2 = Columns.removeUnusedDictionaryValues(buffer2.toColumn(),
 					Columns.CleanupOption.REMOVE, Belt.defaultContext());
 			Table table = Builders.newTableBuilder(11).add("first", column)
 					.add("second", column2)
@@ -696,27 +966,27 @@ public class BeltConverterTest {
 
 		@Test
 		public void testBinominal() {
-			CategoricalBuffer<String> buffer = Buffers.categoricalBuffer(112, 2);
+			NominalBuffer buffer = Buffers.nominalBuffer(112, 2);
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "value" + (i % 2));
 			}
 			buffer.set(100, null);
-			CategoricalBuffer<String> buffer2 = Buffers.categoricalBuffer(112, 2);
+			NominalBuffer buffer2 = Buffers.nominalBuffer(112, 2);
 			for (int i = 0; i < buffer2.size(); i++) {
 				buffer2.set(i, "val" + (i % 2));
 			}
 			buffer2.set(42, null);
-			CategoricalBuffer<String> buffer3 = Buffers.categoricalBuffer(112, 2);
+			NominalBuffer buffer3 = Buffers.nominalBuffer(112, 2);
 			for (int i = 0; i < buffer.size(); i += 2) {
 				buffer3.set(i, "one");
 			}
-			CategoricalBuffer<String> buffer4 = Buffers.categoricalBuffer(112, 2);
+			NominalBuffer buffer4 = Buffers.nominalBuffer(112, 2);
 
-			Table table = Builders.newTableBuilder(112).add("first", buffer.toBooleanColumn(ColumnTypes.NOMINAL, "value0"))
-					.add("second", buffer2.toBooleanColumn(ColumnTypes.NOMINAL, "val1"))
-					.add("onePositive", buffer3.toBooleanColumn(ColumnTypes.NOMINAL, "one"))
-					.add("oneNegative", buffer3.toBooleanColumn(ColumnTypes.NOMINAL, null))
-					.add("empty", buffer4.toBooleanColumn(ColumnTypes.NOMINAL, null))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toBooleanColumn( "value0"))
+					.add("second", buffer2.toBooleanColumn( "val1"))
+					.add("onePositive", buffer3.toBooleanColumn( "one"))
+					.add("oneNegative", buffer3.toBooleanColumn( null))
+					.add("empty", buffer4.toBooleanColumn( null))
 					.build(Belt.defaultContext());
 
 			ExampleSet set = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -749,22 +1019,22 @@ public class BeltConverterTest {
 
 		@Test
 		public void testBinominalGaps() {
-			CategoricalBuffer<String> buffer = BufferAccessor.get().newUInt2Buffer(112);
+			NominalBuffer buffer = BufferAccessor.get().newUInt2Buffer(ColumnType.NOMINAL, 112);
 			buffer.set(0, "bla");
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "blup");
 			}
 			buffer.set(100, null);
-			CategoricalBuffer<String> buffer2 = BufferAccessor.get().newUInt2Buffer(112);
+			NominalBuffer buffer2 = BufferAccessor.get().newUInt2Buffer(ColumnType.NOMINAL, 112);
 			buffer2.set(0, "bla");
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer2.set(i, "blup");
 			}
 			buffer2.set(100, null);
 
-			Column bla = Columns.removeUnusedDictionaryValues(buffer.toBooleanColumn(ColumnTypes.NOMINAL, "bla"),
+			Column bla = Columns.removeUnusedDictionaryValues(buffer.toBooleanColumn( "bla"),
 					Columns.CleanupOption.REMOVE, Belt.defaultContext());
-			Column blup = Columns.removeUnusedDictionaryValues(buffer2.toBooleanColumn(ColumnTypes.NOMINAL, "blup"),
+			Column blup = Columns.removeUnusedDictionaryValues(buffer2.toBooleanColumn("blup"),
 					Columns.CleanupOption.REMOVE, Belt.defaultContext());
 			Table table = Builders.newTableBuilder(112).add("first", bla)
 					.add("second", blup)
@@ -788,7 +1058,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testNominalUnusedValue() {
-			CategoricalBuffer<String> buffer = Buffers.categoricalBuffer(112);
+			NominalBuffer buffer = Buffers.nominalBuffer(112);
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "valu" + (i % 5));
 			}
@@ -796,13 +1066,13 @@ public class BeltConverterTest {
 				buffer.set(i, "value" + (i % 5));
 			}
 
-			CategoricalBuffer<String> buffer2 = Buffers.categoricalBuffer(112);
+			NominalBuffer buffer2 = Buffers.nominalBuffer(112);
 			for (int i = 0; i < buffer2.size(); i++) {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
-					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn())
+					.add("second", buffer2.toColumn())
 					.build(Belt.defaultContext());
 
 			ExampleSet set = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -816,7 +1086,7 @@ public class BeltConverterTest {
 		public void testManyColumns() {
 			TableBuilder builder = Builders.newTableBuilder(11);
 			for (int i = 0; i < 30; i++) {
-				builder.addReal("real" + i, j -> 3 * j / 5.0).addInt("int" + i, j -> 5 * j);
+				builder.addReal("real" + i, j -> 3 * j / 5.0).addInt53Bit("int" + i, j -> 5 * j);
 			}
 			Table table = builder.build(Belt.defaultContext());
 
@@ -830,7 +1100,7 @@ public class BeltConverterTest {
 		@Test
 		public void testRoles() {
 			TableBuilder builder = Builders.newTableBuilder(10);
-			builder.addInt("att-1", i -> i);
+			builder.addInt53Bit("att-1", i -> i);
 
 			ColumnRole[] columnRoles = new ColumnRole[]{ColumnRole.ID, ColumnRole.LABEL, ColumnRole.PREDICTION,
 					ColumnRole.SCORE, ColumnRole.WEIGHT, ColumnRole.OUTLIER, ColumnRole.CLUSTER, ColumnRole.BATCH,
@@ -840,11 +1110,11 @@ public class BeltConverterTest {
 				builder.addMetaData("att" + i, columnRoles[i]);
 			}
 
-			builder.addInt("batt1", i -> i);
+			builder.addInt53Bit("batt1", i -> i);
 			builder.addMetaData("batt1", ColumnRole.METADATA);
 			builder.addMetaData("batt1", new com.rapidminer.belt.table.LegacyRole("ignore-me"));
 
-			builder.addInt("batt2", i -> i);
+			builder.addInt53Bit("batt2", i -> i);
 			builder.addMetaData("batt2", ColumnRole.SCORE);
 			builder.addMetaData("batt2", new com.rapidminer.belt.table.LegacyRole("confidence_Yes"));
 
@@ -871,9 +1141,9 @@ public class BeltConverterTest {
 			builder.addReal("att2", i -> i);
 			builder.addMetaData("att2", com.rapidminer.belt.table.LegacyType.NUMERICAL);
 
-			builder.addInt("att3", i -> i);
+			builder.addInt53Bit("att3", i -> i);
 
-			builder.addInt("att4", i -> i);
+			builder.addInt53Bit("att4", i -> i);
 			builder.addMetaData("att4", com.rapidminer.belt.table.LegacyType.NUMERICAL);
 
 			builder.addDateTime("att5", i -> Instant.EPOCH);
@@ -905,7 +1175,7 @@ public class BeltConverterTest {
 			builder.addNominal("att13", i -> i % 2 == 0 ? "A" : "B", 2);
 			builder.addMetaData("att13", com.rapidminer.belt.table.LegacyType.NOMINAL);
 
-			builder.addBoolean("att14", i -> i % 2 == 0 ? "A" : "B", "A", ColumnTypes.NOMINAL);
+			builder.addBoolean("att14", i -> i % 2 == 0 ? "A" : "B", "A");
 
 			Table table = builder.build(Belt.defaultContext());
 
@@ -914,9 +1184,9 @@ public class BeltConverterTest {
 			int[] result =
 					StreamSupport.stream(set.getAttributes().spliterator(), false).mapToInt(Attribute::getValueType)
 							.toArray();
-			int[] expected = new int[]{Ontology.REAL, Ontology.NUMERICAL, Ontology.INTEGER, Ontology.NUMERICAL,
-					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.INTEGER, Ontology.NUMERICAL, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
-					Ontology.BINOMINAL,	Ontology.STRING, Ontology.FILE_PATH, Ontology.NOMINAL, Ontology.BINOMINAL};
+			int[] expected = new int[]{Ontology.REAL, Ontology.NUMERICAL, Ontology.INTEGER, Ontology.INTEGER,
+					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.INTEGER, Ontology.INTEGER, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
+					Ontology.BINOMINAL, Ontology.STRING, Ontology.FILE_PATH, Ontology.NOMINAL, Ontology.BINOMINAL};
 
 			assertArrayEquals(expected, result);
 		}
@@ -930,10 +1200,10 @@ public class BeltConverterTest {
 			builder.addReal("att2", i -> i);
 			builder.addMetaData("att2", com.rapidminer.belt.table.LegacyType.INTEGER);
 
-			builder.addInt("att3", i -> i);
+			builder.addInt53Bit("att3", i -> i);
 			builder.addMetaData("att3", com.rapidminer.belt.table.LegacyType.REAL);
 
-			builder.addInt("att4", i -> i);
+			builder.addInt53Bit("att4", i -> i);
 			builder.addMetaData("att4", com.rapidminer.belt.table.LegacyType.NOMINAL);
 
 			builder.addNominal("att5", i -> i % 2 == 0 ? "A" : i % 3 == 0 ? "B" : "C", 2);
@@ -965,7 +1235,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testAnnotations() {
-			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt53Bit("int", i -> 5 * i)
 					.build(Belt.defaultContext());
 
 			IOTable tableObject = new IOTable(table);
@@ -978,19 +1248,17 @@ public class BeltConverterTest {
 
 
 		@Test(expected = BeltConverter.ConversionException.class)
-		public void testCustomColumns() {
-			ColumnType<Integer> customType = ColumnTypes.categoricalType("com.rapidminer.custom.integer",
-					Integer.class, null);
-			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
-					.addCategorical("custom", i -> i, customType)
+		public void testAdvancedColumns() {
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt53Bit("int", i -> 5 * i)
+					.addTextset("textset", i -> new StringSet(Collections.singleton("val"+i)))
 					.build(Belt.defaultContext());
 
 			IOTable tableObject = new IOTable(table);
 			try {
 				BeltConverter.convert(tableObject, CONTEXT);
 			} catch (BeltConverter.ConversionException e) {
-				assertEquals("custom", e.getColumnName());
-				assertEquals(customType, e.getType());
+				assertEquals("textset", e.getColumnName());
+				assertEquals(ColumnType.TEXTSET, e.getType());
 				throw e;
 			}
 		}
@@ -1068,7 +1336,7 @@ public class BeltConverterTest {
 				}
 			});
 
-			return Arrays.asList(new Object[][] {
+			return Arrays.asList(new Object[][]{
 					{simpleSet.getClass().getSimpleName(), simpleSet},
 					{conditionedSet.getClass().getSimpleName(), conditionedSet},
 					{sortedSet.getClass().getSimpleName(), sortedSet},
@@ -1127,7 +1395,7 @@ public class BeltConverterTest {
 				attributes.add(AttributeFactory.createAttribute(i));
 			}
 			ExampleSet set = new SortedExampleSet(ExampleSets.from(attributes)
-					.build(), attributes.get(1), SortedExampleSet.DECREASING);;
+					.build(), attributes.get(1), SortedExampleSet.DECREASING);
 
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -1140,11 +1408,17 @@ public class BeltConverterTest {
 			Attribute animals = attributeDogCatMouse();
 			Attribute real = attributeReal();
 			Attribute answer = attributeYesNo();
-			List<Attribute> attributes = Arrays.asList(integer, animals, real, answer);
+			Attribute confidence = attributeReal();
+			confidence.setName("confidence");
+			Attribute cluster = attributeReal();
+			cluster.setName("cluster");
+			List<Attribute> attributes = Arrays.asList(integer, animals, real, answer, confidence, cluster);
 
 			ExampleSet set = ExampleSets.from(attributes).withBlankSize(10)
-					.withRole(integer, Attributes.CONFIDENCE_NAME+"_"+"Yes")
+					.withRole(integer, Attributes.CONFIDENCE_NAME + "_" + "Yes")
 					.withRole(answer, Attributes.LABEL_NAME)
+					.withRole(confidence, "confidence(yes)")
+					.withRole(cluster, "cluster_1_probability")
 					.withRole(animals, "someStupidRole").build();
 
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
@@ -1160,14 +1434,14 @@ public class BeltConverterTest {
 			Attribute dateTime = AttributeFactory.createAttribute("date_time", Ontology.DATE_TIME);
 			Attribute date = AttributeFactory.createAttribute("date", Ontology.DATE);
 			Attribute time = AttributeFactory.createAttribute("time", Ontology.TIME);
-			List<Attribute> attributes =Arrays.asList(numeric, real, integer, dateTime, date, time);
+			List<Attribute> attributes = Arrays.asList(numeric, real, integer, dateTime, date, time);
 			ExampleSet set = ExampleSets.from(attributes).withBlankSize(150)
 					.withColumnFiller(numeric, i -> Math.random() > 0.7 ? Double.NaN : Math.random())
 					.withColumnFiller(real, i -> Math.random() > 0.7 ? Double.NaN : 42 + Math.random())
 					.withColumnFiller(integer, i -> Math.random() > 0.7 ? Double.NaN : Math.round(Math.random() * 100))
-					.withColumnFiller(dateTime,	i -> Math.random() > 0.7 ? Double.NaN : (i % 3 == 0 ? -1 : 1)
+					.withColumnFiller(dateTime, i -> Math.random() > 0.7 ? Double.NaN : (i % 3 == 0 ? -1 : 1)
 							* 1515410698d + Math.floor(Math.random() * 1000))
-					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :  (i % 3 == 0 ? -1 : 1) *
+					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN : (i % 3 == 0 ? -1 : 1) *
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time, i -> Math.random() > 0.7 ? Double.NaN :
 							(i % 3 == 0 ? -1 : 1) * Math.floor(Math.random() * 60 * 60 * 24 * 1000))
@@ -1220,7 +1494,7 @@ public class BeltConverterTest {
 		public void testIncompleteBinominalTypes() {
 			Attribute binominalOne = AttributeFactory.createAttribute("binominalOne", Ontology.BINOMINAL);
 			Attribute binominalZero = AttributeFactory.createAttribute("binominalZero", Ontology.BINOMINAL);
-				binominalOne.getMapping().mapString("binominalValue" + 1);
+			binominalOne.getMapping().mapString("binominalValue" + 1);
 
 			List<Attribute> attributes = Arrays.asList(binominalOne, binominalZero);
 			Random random = new Random();
@@ -1334,17 +1608,17 @@ public class BeltConverterTest {
 
 		@Test
 		public void testRemappingSame() {
-			CategoricalBuffer<String> buffer = BufferAccessor.get().newUInt16Buffer(112);
+			NominalBuffer buffer = BufferAccessor.get().newUInt16Buffer(ColumnType.NOMINAL, 112);
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "value" + (i % 5));
 			}
-			CategoricalBuffer<String> buffer2 = BufferAccessor.get().newUInt16Buffer(112);
+			NominalBuffer buffer2 = BufferAccessor.get().newUInt16Buffer(ColumnType.NOMINAL, 112);
 			for (int i = 0; i < buffer2.size(); i++) {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
-					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn())
+					.add("second", buffer2.toColumn())
 					.build(Belt.defaultContext());
 
 			ExampleSet set = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -1364,7 +1638,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testRemappingUnusedValue() {
-			CategoricalBuffer<String> buffer = BufferAccessor.get().newUInt16Buffer(112);
+			NominalBuffer buffer = BufferAccessor.get().newUInt16Buffer(ColumnType.NOMINAL, 112);
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "valu" + (i % 5));
 			}
@@ -1372,22 +1646,22 @@ public class BeltConverterTest {
 				buffer.set(i, "value" + (i % 5));
 			}
 
-			CategoricalBuffer<String> buffer2 = BufferAccessor.get().newInt32Buffer(112);
+			NominalBuffer buffer2 = BufferAccessor.get().newInt32Buffer(ColumnType.NOMINAL, 112);
 			for (int i = 0; i < buffer2.size(); i++) {
 				buffer2.set(i, "val" + (i % 7));
 			}
 			buffer2.set(42, null);
-			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
-					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
+			Table table = Builders.newTableBuilder(112).add("first", buffer.toColumn())
+					.add("second", buffer2.toColumn())
 					.build(Belt.defaultContext());
 
-			buffer = BufferAccessor.get().newUInt16Buffer(112);
+			buffer = BufferAccessor.get().newUInt16Buffer(ColumnType.NOMINAL, 112);
 			for (int i = 0; i < buffer.size(); i++) {
 				buffer.set(i, "value" + (i % 5));
 			}
 
-			Table table2 = Builders.newTableBuilder(112).add("first", buffer.toColumn(ColumnTypes.NOMINAL))
-					.add("second", buffer2.toColumn(ColumnTypes.NOMINAL))
+			Table table2 = Builders.newTableBuilder(112).add("first", buffer.toColumn())
+					.add("second", buffer2.toColumn())
 					.build(Belt.defaultContext());
 
 			ExampleSet set = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
@@ -1407,17 +1681,16 @@ public class BeltConverterTest {
 
 
 		@Test(expected = BeltConverter.ConversionException.class)
-		public void testCustomColumns() {
-			ColumnType<Integer> customType = ColumnTypes.categoricalType("com.rapidminer.custom.integer",
-					Integer.class, null);
-			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
-					.addCategorical("custom", i -> i, customType)
+		public void testAdvancedColumns() {
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt53Bit("int", i -> 5 * i)
+					.addTextset("textset", i -> new StringSet(Collections.singleton("val"+i)))
 					.build(Belt.defaultContext());
+
 			try {
 				BeltConverter.convertHeader(table);
 			} catch (BeltConverter.ConversionException e) {
-				assertEquals("custom", e.getColumnName());
-				assertEquals(customType, e.getType());
+				assertEquals("textset", e.getColumnName());
+				assertEquals(ColumnType.TEXTSET, e.getType());
 				throw e;
 			}
 		}
@@ -1438,7 +1711,7 @@ public class BeltConverterTest {
 
 		@Test
 		public void testSimple() {
-			Table table = Builders.newTableBuilder(112).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+			Table table = Builders.newTableBuilder(112).addReal("real", i -> 3 * i / 5.0).addInt53Bit("int", i -> 5 * i)
 					.build(Belt.defaultContext());
 
 			ExampleSet set = com.rapidminer.belt.table.BeltConverter.convertSequentially(new IOTable(table));
@@ -1453,7 +1726,7 @@ public class BeltConverterTest {
 		public void testManyColumns() {
 			TableBuilder builder = Builders.newTableBuilder(11);
 			for (int i = 0; i < 30; i++) {
-				builder.addReal("real" + i, j -> 3 * j / 5.0).addInt("int" + i, j -> 5 * j);
+				builder.addReal("real" + i, j -> 3 * j / 5.0).addInt53Bit("int" + i, j -> 5 * j);
 			}
 			Table table = builder.build(Belt.defaultContext());
 
@@ -1467,7 +1740,7 @@ public class BeltConverterTest {
 		@Test
 		public void testRoles() {
 			TableBuilder builder = Builders.newTableBuilder(10);
-			builder.addInt("att-1", i -> i);
+			builder.addInt53Bit("att-1", i -> i);
 
 			ColumnRole[] columnRoles = new ColumnRole[]{ColumnRole.ID, ColumnRole.LABEL, ColumnRole.PREDICTION,
 					ColumnRole.SCORE, ColumnRole.WEIGHT, ColumnRole.OUTLIER, ColumnRole.CLUSTER, ColumnRole.BATCH,
@@ -1477,11 +1750,11 @@ public class BeltConverterTest {
 				builder.addMetaData("att" + i, columnRoles[i]);
 			}
 
-			builder.addInt("batt1", i -> i);
+			builder.addInt53Bit("batt1", i -> i);
 			builder.addMetaData("batt1", ColumnRole.METADATA);
 			builder.addMetaData("batt1", new com.rapidminer.belt.table.LegacyRole("ignore-me"));
 
-			builder.addInt("batt2", i -> i);
+			builder.addInt53Bit("batt2", i -> i);
 			builder.addMetaData("batt2", ColumnRole.SCORE);
 			builder.addMetaData("batt2", new com.rapidminer.belt.table.LegacyRole("confidence_Yes"));
 
@@ -1508,9 +1781,9 @@ public class BeltConverterTest {
 			builder.addReal("att2", i -> i);
 			builder.addMetaData("att2", com.rapidminer.belt.table.LegacyType.NUMERICAL);
 
-			builder.addInt("att3", i -> i);
+			builder.addInt53Bit("att3", i -> i);
 
-			builder.addInt("att4", i -> i);
+			builder.addInt53Bit("att4", i -> i);
 			builder.addMetaData("att4", com.rapidminer.belt.table.LegacyType.NUMERICAL);
 
 			builder.addDateTime("att5", i -> Instant.EPOCH);
@@ -1542,7 +1815,7 @@ public class BeltConverterTest {
 			builder.addNominal("att13", i -> i % 2 == 0 ? "A" : "B", 2);
 			builder.addMetaData("att13", com.rapidminer.belt.table.LegacyType.NOMINAL);
 
-			builder.addBoolean("att14", i -> i % 2 == 0 ? "A" : "B", "A", ColumnTypes.NOMINAL);
+			builder.addBoolean("att14", i -> i % 2 == 0 ? "A" : "B", "A");
 
 			Table table = builder.build(Belt.defaultContext());
 
@@ -1551,16 +1824,16 @@ public class BeltConverterTest {
 			int[] result =
 					StreamSupport.stream(set.getAttributes().spliterator(), false).mapToInt(Attribute::getValueType)
 							.toArray();
-			int[] expected = new int[]{Ontology.REAL, Ontology.NUMERICAL, Ontology.INTEGER, Ontology.NUMERICAL,
-					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.INTEGER, Ontology.NUMERICAL, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
-					Ontology.BINOMINAL,	Ontology.STRING, Ontology.FILE_PATH, Ontology.NOMINAL, Ontology.BINOMINAL};
+			int[] expected = new int[]{Ontology.REAL, Ontology.NUMERICAL, Ontology.INTEGER, Ontology.INTEGER,
+					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.INTEGER, Ontology.INTEGER, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
+					Ontology.BINOMINAL, Ontology.STRING, Ontology.FILE_PATH, Ontology.NOMINAL, Ontology.BINOMINAL};
 
 			assertArrayEquals(expected, result);
 		}
 
 		@Test
 		public void testAnnotations() {
-			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
+			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt53Bit("int", i -> 5 * i)
 					.build(Belt.defaultContext());
 
 			IOTable tableObject = new IOTable(table);
@@ -1572,17 +1845,16 @@ public class BeltConverterTest {
 		}
 
 		@Test(expected = BeltConverter.ConversionException.class)
-		public void testCustomColumns() {
-			ColumnType<Integer> customType = ColumnTypes.categoricalType("com.rapidminer.custom.integer",
-					Integer.class, null);
-			Table table = Builders.newTableBuilder(11).addReal("real", i -> 3 * i / 5.0).addInt("int", i -> 5 * i)
-					.addCategorical("custom", i -> i, customType)
+		public void testAdvancedColumns() {
+			Table table = Builders.newTableBuilder(11).addReal("real", i ->  3 * i / 5.0).addInt53Bit("int", i -> 5 * i)
+					.addTextset("textset", i -> new StringSet(Collections.singleton("val"+i)))
 					.build(Belt.defaultContext());
+
 			try {
 				BeltConverter.convertSequentially(new IOTable(table));
 			} catch (BeltConverter.ConversionException e) {
-				assertEquals("custom", e.getColumnName());
-				assertEquals(customType, e.getType());
+				assertEquals("textset", e.getColumnName());
+				assertEquals(ColumnType.TEXTSET, e.getType());
 				throw e;
 			}
 		}
