@@ -19,6 +19,7 @@
 package com.rapidminer.belt.table;
 
 import java.io.ObjectStreamException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -189,6 +190,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 	 */
 	static HeaderExampleSet getShiftedHeader(Table table) {
 		Attributes attributes = new SimpleAttributes();
+		List<Attribute> orderedAttributes = new ArrayList<>();
 		List<String> labels = table.labels();
 		int i = 0;
 		for (String label : labels) {
@@ -197,6 +199,7 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 					com.rapidminer.belt.table.BeltConverter.getValueType(table, label, i));
 			attribute.setTableIndex(i);
 			attributes.add(new AttributeRole(attribute));
+			orderedAttributes.add(attribute);
 			if (attribute.isNominal()) {
 				List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary());
 				attribute.setMapping(new ShiftedNominalMappingAdapter(mapping));
@@ -204,7 +207,9 @@ public final class DoubleTableWrapper extends RowwiseStatisticsExampleSet {
 			i++;
 		}
 		BeltConverter.convertRoles(table, attributes);
-		return new HeaderExampleSet(attributes);
+		HeaderExampleSet exampleSet = new HeaderExampleSet(attributes);
+		FromTableConverter.adjustAttributes((Attributes) attributes.clone(), orderedAttributes, exampleSet);
+		return exampleSet;
 	}
 
 }

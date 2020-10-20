@@ -18,6 +18,7 @@
  */
 package com.rapidminer.belt.table;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -30,6 +31,7 @@ import com.rapidminer.example.Attribute;
 import com.rapidminer.example.Attributes;
 import com.rapidminer.operator.OperatorException;
 import com.rapidminer.operator.error.AttributeNotFoundError;
+import com.rapidminer.tools.container.Triple;
 
 
 /**
@@ -46,12 +48,23 @@ abstract class AbstractTableAccessor {
 	private static final String EMPTY_STRING = "";
 
 	protected final Table table;
-	protected final List<Attribute> attributes;
+	private final List<Attribute> attributes;
+	private final int unusedAttributes;
 
-
-	AbstractTableAccessor(Table table, List<Attribute> attributes) {
+	/**
+	 * Creates a new accessor for a belt table.
+	 *
+	 * @param table
+	 * 		the table to wrap
+	 * @param attributes
+	 * 		the attributes matching the table, can contain {@code null} for unused columns
+	 * @param unusedAttributes
+	 * 		the number of {@code null}s in the attributes
+	 */
+	AbstractTableAccessor(Table table, List<Attribute> attributes, int unusedAttributes) {
 		this.attributes = attributes;
 		this.table = table;
+		this.unusedAttributes = unusedAttributes;
 	}
 
 	/**
@@ -174,12 +187,13 @@ abstract class AbstractTableAccessor {
 	 *
 	 * @param attributes
 	 * 		the used attributes
-	 * @return a table with cleaned up columns
+	 * @return a triple of a table with cleaned up columns, attributes adjusted accordingly and the number of unused attributes
 	 */
-	protected Table columnCleanup(Attributes attributes) {
+	protected Triple<Table, List<Attribute>, Integer> columnCleanup(Attributes attributes) {
 		String[] labels = table.labelArray();
 		Column[] oldColumns = table.getColumns();
 		Column[] columns = Arrays.copyOf(oldColumns, oldColumns.length);
+
 		boolean[] usedIndices = new boolean[table.width()];
 		for (Iterator<Attribute> allIterator = attributes.allAttributes(); allIterator.hasNext(); ) {
 			Attribute attribute = allIterator.next();
@@ -193,12 +207,22 @@ abstract class AbstractTableAccessor {
 				ColumnAccessor.get().newSingleValueCategoricalColumn(ColumnType.NOMINAL, EMPTY_STRING,
 						table.height());
 		//replace unused columns by those which take minimal memory
+		int unused = 0;
+		List<Attribute> newAttributes = new ArrayList<>(this.attributes);
 		for (int i = 0; i < columns.length; i++) {
 			if (!usedIndices[i]) {
 				columns[i] = emptySparseColumn;
+				newAttributes.set(i, null);
+				unused++;
 			}
 		}
-		return new Table(columns, labels, table.getMetaData());
+		return new Triple<>(new Table(columns, labels, table.getMetaData()), newAttributes, unused);
 	}
 
+	/**
+	 * @return the number of cleaned up attributes that are not used anymore
+	 */
+	int getUnused(){
+		return unusedAttributes;
+	}
 }

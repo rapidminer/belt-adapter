@@ -30,6 +30,7 @@ import com.rapidminer.belt.reader.SmallReaders;
 import com.rapidminer.example.Attribute;
 import com.rapidminer.example.Attributes;
 import com.rapidminer.tools.container.Pair;
+import com.rapidminer.tools.container.Triple;
 
 
 /**
@@ -69,9 +70,20 @@ class MixedTableAccessor extends AbstractTableAccessor {
 	 */
 	private final int[] twist;
 
-
-	MixedTableAccessor(Table table, List<Attribute> attributes, int numberOfDateTime) {
-		super(table, attributes);
+	/**
+	 * Creates a new accessor for a belt table with date-time columns.
+	 *
+	 * @param table
+	 * 		the table to wrap
+	 * @param attributes
+	 * 		the attributes matching the table, can contain {@code null} for unused columns
+	 * @param numberOfDateTime
+	 * 		the number of date-time columns
+	 * @param unusedAttributes
+	 * 		the number of {@code null}s in the attributes
+	 */
+	MixedTableAccessor(Table table, List<Attribute> attributes, int numberOfDateTime, int unusedAttributes) {
+		super(table, attributes, unusedAttributes);
 		twist = new int[table.width()];
 		numericReadableColumns = new ArrayList<>();
 		dateTimeColumns = new ArrayList<>();
@@ -158,7 +170,8 @@ class MixedTableAccessor extends AbstractTableAccessor {
 
 	@Override
 	public AbstractTableAccessor columnCleanupClone(Attributes attributes) {
-		Table newTable = columnCleanup(attributes);
+		Triple<Table, List<Attribute>, Integer> cleaned = columnCleanup(attributes);
+		Table newTable = cleaned.getFirst();
 		// need to count remaining date-time columns to use constructor
 		int dateTimeCount = 0;
 		for (Column column : newTable.getColumns()) {
@@ -166,7 +179,7 @@ class MixedTableAccessor extends AbstractTableAccessor {
 				dateTimeCount++;
 			}
 		}
-		return new MixedTableAccessor(newTable, this.attributes, dateTimeCount);
+		return new MixedTableAccessor(newTable, cleaned.getSecond(), dateTimeCount, cleaned.getThird());
 	}
 
 	/**

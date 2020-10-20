@@ -26,6 +26,7 @@ import com.rapidminer.belt.reader.NumericReader;
 import com.rapidminer.belt.reader.SmallReaders;
 import com.rapidminer.example.Attribute;
 import com.rapidminer.example.Attributes;
+import com.rapidminer.tools.container.Triple;
 
 
 /**
@@ -49,9 +50,18 @@ class NumericTableAccessor extends AbstractTableAccessor {
 	 */
 	private final ThreadLocal<WeakReference<NumericReader[]>> readersReference = new ThreadLocal<>();
 
-
-	NumericTableAccessor(Table table, List<Attribute> attributes) {
-		super(table, attributes);
+	/**
+	 * Creates a new accessor for a belt table without date-time columns.
+	 *
+	 * @param table
+	 * 		the table to wrap
+	 * @param attributes
+	 * 		the attributes matching the table, can contain {@code null} for unused columns
+	 * @param unusedAttributes
+	 * 		the number of {@code null}s in the attributes
+	 */
+	NumericTableAccessor(Table table, List<Attribute> attributes, int unusedAttributes) {
+		super(table, attributes, unusedAttributes);
 	}
 
 	@Override
@@ -101,7 +111,8 @@ class NumericTableAccessor extends AbstractTableAccessor {
 
 	@Override
 	public AbstractTableAccessor columnCleanupClone(Attributes attributes) {
-		return new NumericTableAccessor(columnCleanup(attributes), this.attributes);
+		Triple<Table, List<Attribute>, Integer> cleaned = columnCleanup(attributes);
+		return new NumericTableAccessor(cleaned.getFirst(), cleaned.getSecond(), cleaned.getThird());
 	}
 
 }

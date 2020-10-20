@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -548,6 +549,7 @@ public class BeltConverterTest {
 		public void testRoles() {
 			String[] roles = new String[]{Attributes.ID_NAME, Attributes.CONFIDENCE_NAME + "_" + "Yes",
 					Attributes.LABEL_NAME, Attributes.PREDICTION_NAME,
+					BeltConverter.INTERPRETATION_NAME, BeltConverter.ENCODING_NAME, BeltConverter.SOURCE_NAME,
 					Attributes.CLUSTER_NAME, Attributes.WEIGHT_NAME, Attributes.BATCH_NAME, Attributes.OUTLIER_NAME,
 					Attributes.CONFIDENCE_NAME,
 					Attributes.CLASSIFICATION_COST, "ignore-me", "confidence(yes)", "cluster_1_probability"};
@@ -567,6 +569,7 @@ public class BeltConverterTest {
 					.toArray(ColumnRole[]::new);
 			ColumnRole[] expected =
 					new ColumnRole[]{null, ColumnRole.ID, ColumnRole.SCORE, ColumnRole.LABEL, ColumnRole.PREDICTION,
+							ColumnRole.INTERPRETATION, ColumnRole.ENCODING, ColumnRole.SOURCE,
 							ColumnRole.CLUSTER,
 							ColumnRole.WEIGHT, ColumnRole.BATCH, ColumnRole.OUTLIER, ColumnRole
 							.SCORE,	ColumnRole.METADATA, ColumnRole.METADATA, ColumnRole.SCORE, ColumnRole.METADATA};
@@ -577,7 +580,7 @@ public class BeltConverterTest {
 					.toArray(com.rapidminer.belt.table.LegacyRole[]::new);
 			com.rapidminer.belt.table.LegacyRole[] legacyExpected =
 					new com.rapidminer.belt.table.LegacyRole[]{null, null, null, null, null, null, null, null, null,
-							null,
+							null, null, null, null,
 							new LegacyRole(Attributes.CLASSIFICATION_COST),
 							new LegacyRole("ignore-me"), new LegacyRole("confidence(yes)"), new LegacyRole("cluster_1_probability")};
 			assertArrayEquals(legacyExpected, legacyResult);
@@ -587,7 +590,8 @@ public class BeltConverterTest {
 					.toArray(ColumnReference[]::new);
 			ColumnReference[] referencesExpected =
 					new ColumnReference[]{null, null,
-							new ColumnReference(set.getAttributes().getPredictedLabel().getName(), "Yes"), null, null,
+							new ColumnReference(set.getAttributes().getPredictedLabel().getName(), "Yes"), null,
+							null, null, null, null,
 							null, null, null, null, new ColumnReference(set.getAttributes().getPredictedLabel().getName()),
 							null, null, new ColumnReference(set.getAttributes().getPredictedLabel().getName()), null};
 			assertArrayEquals(referencesExpected, references);
@@ -829,6 +833,7 @@ public class BeltConverterTest {
 		public void testRolesView() {
 			String[] roles = new String[]{Attributes.ID_NAME, Attributes.CONFIDENCE_NAME + "_" + "Yes",
 					Attributes.LABEL_NAME, Attributes.PREDICTION_NAME,
+					BeltConverter.INTERPRETATION_NAME, BeltConverter.ENCODING_NAME, BeltConverter.SOURCE_NAME,
 					Attributes.CLUSTER_NAME, Attributes.WEIGHT_NAME, Attributes.BATCH_NAME, Attributes.OUTLIER_NAME,
 					Attributes.CONFIDENCE_NAME,
 					Attributes.CLASSIFICATION_COST, "ignore-me"};
@@ -848,6 +853,7 @@ public class BeltConverterTest {
 					.toArray(ColumnRole[]::new);
 			ColumnRole[] expected =
 					new ColumnRole[]{null, ColumnRole.ID, ColumnRole.SCORE, ColumnRole.LABEL, ColumnRole.PREDICTION,
+							ColumnRole.INTERPRETATION, ColumnRole.ENCODING, ColumnRole.SOURCE,
 							ColumnRole.CLUSTER,
 							ColumnRole.WEIGHT, ColumnRole.BATCH, ColumnRole.OUTLIER, ColumnRole.SCORE,
 							ColumnRole.METADATA, ColumnRole.METADATA};
@@ -858,7 +864,7 @@ public class BeltConverterTest {
 					.toArray(com.rapidminer.belt.table.LegacyRole[]::new);
 			com.rapidminer.belt.table.LegacyRole[] legacyExpected =
 					new com.rapidminer.belt.table.LegacyRole[]{null, null, null, null, null, null, null, null, null,
-							null,
+							null, null, null, null,
 							new com.rapidminer.belt.table.LegacyRole(Attributes.CLASSIFICATION_COST),
 							new com.rapidminer.belt.table.LegacyRole("ignore-me")};
 			assertArrayEquals(legacyExpected, legacyResult);
@@ -868,7 +874,8 @@ public class BeltConverterTest {
 					.toArray(ColumnReference[]::new);
 			ColumnReference[] referencesExpected =
 					new ColumnReference[]{null, null,
-							new ColumnReference(set.getAttributes().getPredictedLabel().getName(), "Yes"), null, null,
+							new ColumnReference(set.getAttributes().getPredictedLabel().getName(), "Yes"), null,
+							null, null, null, null,
 							null, null, null, null, new ColumnReference(set.getAttributes().getPredictedLabel().getName()),
 							null, null};
 			assertArrayEquals(referencesExpected, references);
@@ -1386,6 +1393,7 @@ public class BeltConverterTest {
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
 			RapidAssert.assertEquals(set, backSet);
+			assertAttributeOrder(set, backSet);
 		}
 
 		@Test
@@ -1400,6 +1408,7 @@ public class BeltConverterTest {
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
 			RapidAssert.assertEquals(set, backSet);
+			assertAttributeOrder(set, backSet);
 		}
 
 		@Test
@@ -1424,6 +1433,7 @@ public class BeltConverterTest {
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
 			RapidAssert.assertEquals(set, backSet);
+			assertAttributeOrder(set, backSet);
 		}
 
 		@Test
@@ -1450,6 +1460,7 @@ public class BeltConverterTest {
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
 			RapidAssert.assertEquals(set, backSet);
+			assertAttributeOrder(set, backSet);
 		}
 
 		@Test
@@ -1488,6 +1499,7 @@ public class BeltConverterTest {
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
 			RapidAssert.assertEquals(set, backSet);
+			assertAttributeOrder(set, backSet);
 		}
 
 		@Test
@@ -1506,9 +1518,51 @@ public class BeltConverterTest {
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
 			RapidAssert.assertEquals(set, backSet);
+			assertAttributeOrder(set, backSet);
 		}
 
+		@Test
+		public void testAttributeOrder() {
+			List<Attribute> attributes = new ArrayList<>();
+			for (int i = 1; i < Ontology.VALUE_TYPE_NAMES.length; i++) {
+				attributes.add(AttributeFactory.createAttribute(i));
+			}
+			ExampleSet set = ExampleSets.from(attributes)
+					.build();
+			//reoder attributes and include specials
+			set.getAttributes().setSpecialAttribute(attributes.get(2), Attributes.LABEL_NAME);
+			set.getAttributes().setSpecialAttribute(attributes.get(1), Attributes.CLUSTER_NAME);
+			set.getAttributes().remove(attributes.get(0));
+			set.getAttributes().addRegular(attributes.get(0));
+			set.getAttributes().remove(attributes.get(4));
+			set.getAttributes().addRegular(attributes.get(4));
+			set.getAttributes().remove(attributes.get(6));
+			set.getAttributes().addRegular(attributes.get(6));
+			set.getAttributes().remove(attributes.get(5));
+			set.getAttributes().addRegular(attributes.get(5));
 
+			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
+			ExampleSet backSet = com.rapidminer.belt.table.BeltConverter.convert(new IOTable(table), CONTEXT);
+			RapidAssert.assertEquals(set, backSet);
+
+			assertAttributeOrder(set, backSet);
+		}
+
+	}
+
+	/**
+	 * Asserts that the order of the attributes is the same.
+	 */
+	static void assertAttributeOrder(ExampleSet expected, ExampleSet actual) {
+		RapidAssert.assertEquals(getOrderedAttributeNames(expected), getOrderedAttributeNames(actual));
+	}
+
+	private static List<String> getOrderedAttributeNames(ExampleSet exampleSet) {
+		List<String> names = new ArrayList<>();
+		for (Iterator<Attribute> it = exampleSet.getAttributes().allAttributes(); it.hasNext(); ) {
+			names.add(it.next().getName());
+		}
+		return names;
 	}
 
 	@RunWith(Parameterized.class)

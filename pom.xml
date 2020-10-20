@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.rapidminer</groupId>
     <artifactId>belt-adapter</artifactId>
-    <version>0.7</version>
+    <version>0.8</version>
     <packaging>jar</packaging>
     <name>belt-adapter</name>
     <properties>
@@ -46,12 +46,12 @@
 		<dependency>
             <groupId>com.rapidminer</groupId>
             <artifactId>belt</artifactId>
-            <version>1.0.0-BETA5</version>
+            <version>1.0.0-BETA6</version>
         </dependency>
 		<dependency>
             <groupId>com.rapidminer.studio</groupId>
             <artifactId>rapidminer-studio-core</artifactId>
-            <version>9.7.0-BETA3</version>
+            <version>9.7.2</version>
         </dependency>
     </dependencies>
     <profiles>

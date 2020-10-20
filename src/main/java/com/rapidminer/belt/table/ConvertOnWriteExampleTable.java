@@ -125,9 +125,9 @@ class ConvertOnWriteExampleTable implements CleanableExampleTable {
 	 */
 	ConvertOnWriteExampleTable(Table table, List<Attribute> attributeList, int numberOfDatetime) {
 		if (numberOfDatetime > 0) {
-			tableAccessor = new MixedTableAccessor(table, attributeList, numberOfDatetime);
+			tableAccessor = new MixedTableAccessor(table, attributeList, numberOfDatetime, 0);
 		} else {
-			tableAccessor = new NumericTableAccessor(table, attributeList);
+			tableAccessor = new NumericTableAccessor(table, attributeList, 0);
 		}
 		originalWidth = table.width();
 		height = table.height();
@@ -450,15 +450,16 @@ class ConvertOnWriteExampleTable implements CleanableExampleTable {
 	@Override
 	public int getAttributeCount() {
 		// store references so that they do not change in parallel
+		AbstractTableAccessor tableAccessorRef = this.tableAccessor;
 		ColumnarExampleTable newColumnsRef = this.newColumns;
 		ColumnarExampleTable convertedTableRef = this.convertedTable;
 		if (convertedTableRef != null) {
 			return convertedTableRef.getAttributeCount();
 		}
 		if (newColumnsRef == null) {
-			return originalWidth;
+			return originalWidth - tableAccessorRef.getUnused();
 		}
-		return originalWidth + newColumnsRef.getAttributeCount();
+		return originalWidth - tableAccessorRef.getUnused() + newColumnsRef.getAttributeCount();
 	}
 
 	// the following 6 methods are the same as in {@link AbstractExampleTable}
@@ -589,6 +590,13 @@ class ConvertOnWriteExampleTable implements CleanableExampleTable {
 				ColumnarExampleTable newColumnsRef = newColumns;
 				if (newColumnsRef != null) {
 					List<Attribute> dummyAttributes = new ArrayList<>();
+					// add dummy attributes to prevent adding into the holes of the table accessor attributes,
+					// addAttribute fills holes first before adding at the end
+					for (int i = 0; i < tableAccessor.getUnused(); i++) {
+						Attribute dummy = AttributeFactory.createAttribute("", Ontology.NUMERICAL);
+						newConvertedTable.addAttribute(dummy);
+						dummyAttributes.add(dummy);
+					}
 					for (Attribute attribute : newColumnsRef.getAttributes()) {
 						if (attribute != null) {
 							Attribute clone = (Attribute) attribute.clone();

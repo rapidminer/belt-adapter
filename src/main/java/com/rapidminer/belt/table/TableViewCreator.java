@@ -147,7 +147,7 @@ public enum TableViewCreator{
 		}
 		convertRoles(table, attributes);
 		ExampleSet set = new ConvertOnWriteExampleTable(table, attributeList, numberOfDatetime).createExampleSet();
-		adjustAttributes(attributes, attributeList, set);
+		FromTableConverter.adjustAttributes(attributes, attributeList, set);
 		set.getAnnotations().addAll(ioTable.getAnnotations());
 		set.setSource(ioTable.getSource());
 		storeBeltMetaDataInExampleSetUserData(table, set);
@@ -270,24 +270,6 @@ public enum TableViewCreator{
 		}
 	}
 
-	/**
-	 * in order to keep the order of the attributes and not have specials at the end we add them again in the order of
-	 * the attributeList.
-	 */
-	private void adjustAttributes(Attributes attributes, List<Attribute> attributeList, ExampleSet set) {
-		Attributes orderedAttributes = set.getAttributes();
-		orderedAttributes.clearRegular();
-		orderedAttributes.clearSpecial();
-		for (Attribute attribute : attributeList) {
-			AttributeRole role = attributes.getRole(attribute);
-			if (!role.isSpecial()) {
-				orderedAttributes.addRegular(attribute);
-			} else {
-				AttributeRole attributeRole = new AttributeRole(attribute);
-				attributeRole.setSpecial(role.getSpecialName());
-				orderedAttributes.add(attributeRole);
-			}
-		}
-	}
+
 
 }

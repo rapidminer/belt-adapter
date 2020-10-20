@@ -18,6 +18,7 @@
  */
 package com.rapidminer.belt.table;
 
+import static com.rapidminer.belt.table.BeltConverterTest.assertAttributeOrder;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -195,7 +196,9 @@ public class TableViewCreatorTest {
 
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
-			RapidAssert.assertEquals(set, com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
+			ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
 		}
 
 		@Test
@@ -222,7 +225,9 @@ public class TableViewCreatorTest {
 
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
 
-			RapidAssert.assertEquals(set, com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
+			ExampleSet view = TableViewCreator.INSTANCE.createView(table);
+			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
 		}
 
 		@Test
@@ -435,7 +440,9 @@ public class TableViewCreatorTest {
 			byte[] serialized = serialize(com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
 			Object deserialized = deserialize(serialized);
 
-			RapidAssert.assertEquals(set, (ExampleSet) deserialized);
+			ExampleSet deserializedES = (ExampleSet) deserialized;
+			RapidAssert.assertEquals(set, deserializedES);
+			assertAttributeOrder(set, deserializedES);
 		}
 
 
@@ -465,7 +472,9 @@ public class TableViewCreatorTest {
 			byte[] serialized = serialize(com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table));
 			Object deserialized = deserialize(serialized);
 
-			RapidAssert.assertEquals(set, (ExampleSet) deserialized);
+			ExampleSet deserializedES = (ExampleSet) deserialized;
+			RapidAssert.assertEquals(set, deserializedES);
+			assertAttributeOrder(set, deserializedES);
 		}
 
 		@Test
@@ -514,7 +523,9 @@ public class TableViewCreatorTest {
 			byte[] serialized = serialize(set);
 			Object deserialized = deserialize(serialized);
 
-			RapidAssert.assertEquals(set, (ExampleSet) deserialized);
+			ExampleSet deserializedES = (ExampleSet) deserialized;
+			RapidAssert.assertEquals(set, deserializedES);
+			assertAttributeOrder(set, deserializedES);
 		}
 
 		@Test
@@ -572,6 +583,7 @@ public class TableViewCreatorTest {
 			ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.createView(table);
 			ExampleSet clone = (ExampleSet) view.clone();
 			RapidAssert.assertEquals(view, clone);
+			assertAttributeOrder(view, clone);
 		}
 
 		@Test
@@ -586,6 +598,7 @@ public class TableViewCreatorTest {
 			ExampleSet view = TableViewCreator.INSTANCE.createView(table);
 			ExampleSet clone = (ExampleSet) view.clone();
 			RapidAssert.assertEquals(view, clone);
+			assertAttributeOrder(view, clone);
 		}
 
 		@Test(expected = BeltConverter.ConversionException.class)
@@ -613,6 +626,34 @@ public class TableViewCreatorTest {
 			Object[] message = new Object[1];
 			replaced.column("textset").fill(message, 0);
 			assertEquals("Error: Cannot display advanced column of Column type Text-Set", message[0]);
+		}
+
+		@Test
+		public void testAttributeOrder() {
+			List<Attribute> attributes = new ArrayList<>();
+			for (int i = 1; i < Ontology.VALUE_TYPE_NAMES.length; i++) {
+				attributes.add(AttributeFactory.createAttribute(i));
+			}
+			ExampleSet set = ExampleSets.from(attributes)
+					.build();
+			//reoder attributes and include specials
+			set.getAttributes().setSpecialAttribute(attributes.get(2), Attributes.LABEL_NAME);
+			set.getAttributes().setSpecialAttribute(attributes.get(1), Attributes.CLUSTER_NAME);
+			set.getAttributes().remove(attributes.get(0));
+			set.getAttributes().addRegular(attributes.get(0));
+			set.getAttributes().remove(attributes.get(4));
+			set.getAttributes().addRegular(attributes.get(4));
+			set.getAttributes().remove(attributes.get(6));
+			set.getAttributes().addRegular(attributes.get(6));
+			set.getAttributes().remove(attributes.get(5));
+			set.getAttributes().addRegular(attributes.get(5));
+
+			Table table = BeltConverter.convert(set, CONTEXT).getTable();
+
+			ExampleSet backSet = TableViewCreator.INSTANCE.createView(table);
+			RapidAssert.assertEquals(set, backSet);
+
+			assertAttributeOrder(set, backSet);
 		}
 	}
 
@@ -660,6 +701,7 @@ public class TableViewCreatorTest {
 			ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.convertOnWriteView(table, true);
 
 			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
 		}
 
 		@Test
@@ -679,6 +721,7 @@ public class TableViewCreatorTest {
 			ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.convertOnWriteView(table, true);
 
 			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
 		}
 
 		@Test
@@ -707,6 +750,7 @@ public class TableViewCreatorTest {
 			ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.convertOnWriteView(table, true);
 
 			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
 		}
 
 		@Test
@@ -895,7 +939,9 @@ public class TableViewCreatorTest {
 			byte[] serialized = serialize(TableViewCreator.INSTANCE.convertOnWriteView(table, true));
 			Object deserialized = deserialize(serialized);
 
-			RapidAssert.assertEquals(set, (ExampleSet) deserialized);
+			ExampleSet deserializedES = (ExampleSet) deserialized;
+			RapidAssert.assertEquals(set, deserializedES);
+			assertAttributeOrder(set, deserializedES);
 		}
 
 
@@ -925,7 +971,9 @@ public class TableViewCreatorTest {
 			byte[] serialized = serialize(TableViewCreator.INSTANCE.convertOnWriteView(table, true));
 			Object deserialized = deserialize(serialized);
 
-			RapidAssert.assertEquals(set, (ExampleSet) deserialized);
+			ExampleSet deserializedES = (ExampleSet) deserialized;
+			RapidAssert.assertEquals(set, deserializedES);
+			assertAttributeOrder(set, deserializedES);
 		}
 
 		@Test
@@ -974,7 +1022,9 @@ public class TableViewCreatorTest {
 			byte[] serialized = serialize(set);
 			Object deserialized = deserialize(serialized);
 
-			RapidAssert.assertEquals(set, (ExampleSet) deserialized);
+			ExampleSet deserializedES = (ExampleSet) deserialized;
+			RapidAssert.assertEquals(set, deserializedES);
+			assertAttributeOrder(set, deserializedES);
 		}
 
 		@Test
@@ -987,6 +1037,7 @@ public class TableViewCreatorTest {
 			ExampleSet view = com.rapidminer.belt.table.TableViewCreator.INSTANCE.convertOnWriteView(table, true);
 			ExampleSet clone = (ExampleSet) view.clone();
 			RapidAssert.assertEquals(view, clone);
+			assertAttributeOrder(view, clone);
 		}
 
 		@Test
@@ -1001,6 +1052,7 @@ public class TableViewCreatorTest {
 			ExampleSet view = TableViewCreator.INSTANCE.convertOnWriteView(table, false);
 			ExampleSet clone = (ExampleSet) view.clone();
 			RapidAssert.assertEquals(view, clone);
+			assertAttributeOrder(view, clone);
 		}
 
 		@Test(expected = BeltConverter.ConversionException.class)
@@ -1074,6 +1126,7 @@ public class TableViewCreatorTest {
 			view.cleanup();
 
 			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
 		}
 
 		@Test
@@ -1112,6 +1165,7 @@ public class TableViewCreatorTest {
 			view.cleanup();
 
 			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
 		}
 
 		@Test
@@ -1152,6 +1206,35 @@ public class TableViewCreatorTest {
 			view.cleanup();
 
 			RapidAssert.assertEquals(set, view);
+			assertAttributeOrder(set, view);
+		}
+
+		@Test
+		public void testAttributeOrder() {
+			List<Attribute> attributes = new ArrayList<>();
+			for (int i = 1; i < Ontology.VALUE_TYPE_NAMES.length; i++) {
+				attributes.add(AttributeFactory.createAttribute(i));
+			}
+			ExampleSet set = ExampleSets.from(attributes)
+					.build();
+			//reoder attributes and include specials
+			set.getAttributes().setSpecialAttribute(attributes.get(2), Attributes.LABEL_NAME);
+			set.getAttributes().setSpecialAttribute(attributes.get(1), Attributes.CLUSTER_NAME);
+			set.getAttributes().remove(attributes.get(0));
+			set.getAttributes().addRegular(attributes.get(0));
+			set.getAttributes().remove(attributes.get(4));
+			set.getAttributes().addRegular(attributes.get(4));
+			set.getAttributes().remove(attributes.get(6));
+			set.getAttributes().addRegular(attributes.get(6));
+			set.getAttributes().remove(attributes.get(5));
+			set.getAttributes().addRegular(attributes.get(5));
+
+			IOTable table = BeltConverter.convert(set, CONTEXT);
+
+			ExampleSet backSet = TableViewCreator.INSTANCE.convertOnWriteView(table, true);
+			RapidAssert.assertEquals(set, backSet);
+
+			assertAttributeOrder(set, backSet);
 		}
 	}
 

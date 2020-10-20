@@ -105,6 +105,20 @@ public final class BeltConverter {
 	 */
 	private static final String META_DATA_NAME = "meta_data";
 
+	/**
+	 * String into which {@link ColumnRole#INTERPRETATION} is converted
+	 */
+	static final String INTERPRETATION_NAME = "interpretation";
+
+	/**
+	 * String into which {@link ColumnRole#ENCODING} is converted
+	 */
+	static final String ENCODING_NAME = "encoding";
+
+	/**
+	 * String into which {@link ColumnRole#SOURCE} is converted
+	 */
+	static final String SOURCE_NAME = "source";
 
 	// Suppress default constructor for noninstantiability
 	private BeltConverter() {
@@ -209,6 +223,15 @@ public final class BeltConverter {
 			case BATCH:
 				convertedRole = Attributes.BATCH_NAME;
 				break;
+			case SOURCE:
+				convertedRole = SOURCE_NAME;
+				break;
+			case ENCODING:
+				convertedRole = ENCODING_NAME;
+				break;
+			case INTERPRETATION:
+				convertedRole = INTERPRETATION_NAME;
+				break;
 			default:
 				convertedRole = null;
 				break;
@@ -281,8 +304,7 @@ public final class BeltConverter {
 
 	/**
 	 * Converts belt roles to studio roles and adds them to the given Attributes. Duplicate roles will be made
-	 * unique by
-	 * adding an index to them.
+	 * unique by adding an index to them.
 	 */
 	static void convertRoles(Table table, Attributes allAttributes) {
 		// this map is used in case there are duplicate roles to get indices for the duplicate roles
@@ -357,6 +379,12 @@ public final class BeltConverter {
 				return ColumnRole.WEIGHT;
 			case Attributes.BATCH_NAME:
 				return ColumnRole.BATCH;
+			case SOURCE_NAME:
+				return ColumnRole.SOURCE;
+			case ENCODING_NAME:
+				return ColumnRole.ENCODING;
+			case INTERPRETATION_NAME:
+				return ColumnRole.INTERPRETATION;
 			default:
 				if (withOutIndex.startsWith(Attributes.CONFIDENCE_NAME)) {
 					return ColumnRole.SCORE;

@@ -139,9 +139,32 @@ enum FromTableConverter {
 		}
 
 		BeltConverter.convertRoles(table, set.getAttributes());
+		//adjust attribute order so that it is kept instead of adding special attributes at the end
+		adjustAttributes((Attributes)set.getAttributes().clone(), attributes, set);
 		set.getAnnotations().addAll(tableObject.getAnnotations());
 		set.setSource(tableObject.getSource());
 		return set;
+	}
+
+
+	/**
+	 * in order to keep the order of the attributes and not have specials at the end we add them again in the order of
+	 * the attributeList.
+	 */
+	static void adjustAttributes(Attributes attributes, List<Attribute> attributeList, ExampleSet set) {
+		Attributes orderedAttributes = set.getAttributes();
+		orderedAttributes.clearRegular();
+		orderedAttributes.clearSpecial();
+		for (Attribute attribute : attributeList) {
+			AttributeRole role = attributes.getRole(attribute);
+			if (!role.isSpecial()) {
+				orderedAttributes.addRegular(attribute);
+			} else {
+				AttributeRole attributeRole = new AttributeRole(attribute);
+				attributeRole.setSpecial(role.getSpecialName());
+				orderedAttributes.add(attributeRole);
+			}
+		}
 	}
 
 	/**
@@ -189,14 +212,29 @@ enum FromTableConverter {
 	 */
 	static ColumnarExampleTable convert(Table table, Attribute[] attributes) {
 		List<Attribute> attributeList = Arrays.asList(attributes);
+		//replace nulls by dummy attributes
+		List<Attribute> dummyAttributes = new ArrayList<>();
+		for (int i = 0; i < attributeList.size(); i++) {
+			if (attributeList.get(i) == null) {
+				Attribute dummy = AttributeFactory.createAttribute("", Ontology.NUMERICAL);
+				dummyAttributes.add(dummy);
+				attributeList.set(i, dummy);
+			}
+		}
+
 		ColumnarExampleTable columnarExampleTable = new ColumnarExampleTable(attributeList);
 		columnarExampleTable.addBlankRows(table.height());
 		columnarExampleTable.setExpectedSize(table.height());
+
+		for (Attribute dummyAttribute : dummyAttributes) {
+			columnarExampleTable.removeAttribute(dummyAttribute);
+		}
 		ExampleSet exampleSet = columnarExampleTable.createExampleSet();
 		// replace the same way as it is displayed in the view
 		table = TableViewCreator.INSTANCE.replaceAdvancedWithErrorMessage(table, x -> TableViewCreator.CANNOT_DISPLAY_MESSAGE);
 		convertSequentially(table, exampleSet);
 		columnarExampleTable.complete();
+
 		return columnarExampleTable;
 	}
 
@@ -215,9 +253,8 @@ enum FromTableConverter {
 	 * Copies the data from the table into the set sequentially.
 	 */
 	private static void convertSequentially(Table table, ExampleSet set) {
-		int i = 0;
 		for (Attribute attribute : set.getAttributes()) {
-			Column column = table.column(i++);
+			Column column = table.column(attribute.getTableIndex());
 			switch (attribute.getValueType()) {
 				case Ontology.STRING:
 				case Ontology.FILE_PATH:

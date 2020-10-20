@@ -850,6 +850,134 @@ public class ConvertOnWriteExampleTableTest {
 			RapidAssert.assertEquals(set, (ExampleSet) deserialized);
 		}
 
+		@Test
+		public void testCleanupAndConvert() {
+			Attribute numeric = AttributeFactory.createAttribute("numeric", Ontology.NUMERICAL);
+			Attribute real = AttributeFactory.createAttribute("real", Ontology.REAL);
+			Attribute integer = AttributeFactory.createAttribute("integer", Ontology.INTEGER);
+			Attribute dateTime = AttributeFactory.createAttribute("date_time", Ontology.DATE_TIME);
+			Attribute date = AttributeFactory.createAttribute("date", Ontology.DATE);
+			Attribute time = AttributeFactory.createAttribute("time", Ontology.TIME);
+			List<Attribute> attributes = Arrays.asList(numeric, real, dateTime, date, time, integer);
+			ExampleSet set = ExampleSets.from(attributes).withBlankSize(150)
+					.withColumnFiller(numeric, i -> Math.random() > 0.7 ? Double.NaN : Math.random())
+					.withColumnFiller(real, i -> Math.random() > 0.7 ? Double.NaN : 42 + Math.random())
+					.withColumnFiller(integer, i -> Math.random() > 0.7 ? Double.NaN : Math.round(Math.random() * 100))
+					.withColumnFiller(dateTime,
+							i -> Math.random() > 0.7 ? Double.NaN : 1515410698d + Math.floor(Math.random() * 1000))
+					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
+							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
+					.withColumnFiller(time,
+							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+					.withRole(numeric, Attributes.LABEL_NAME)
+					.build();
+
+			IOTable table = BeltConverter.convert(set, CONTEXT);
+			ExampleSet view = TableViewCreator.INSTANCE.convertOnWriteView(table, true);
+			set.getAttributes().remove(set.getAttributes().get("real"));
+			set.getAttributes().remove(set.getAttributes().get("date"));
+			view.getAttributes().remove(view.getAttributes().get("real"));
+			view.getAttributes().remove(view.getAttributes().get("date"));
+			set.cleanup();
+			view.cleanup();
+			set.getExampleTable().removeAttribute(set.getAttributes().get("integer"));
+			view.getExampleTable().removeAttribute(view.getAttributes().get("integer"));
+
+			RapidAssert.assertEquals(set, view);
+			assertEquals(set.getExampleTable().getAttributeCount(), view.getExampleTable().getAttributeCount());
+		}
+
+		@Test
+		public void testCleanupAndConvertWithAdditional() {
+			Attribute numeric = AttributeFactory.createAttribute("numeric", Ontology.NUMERICAL);
+			Attribute real = AttributeFactory.createAttribute("real", Ontology.REAL);
+			Attribute integer = AttributeFactory.createAttribute("integer", Ontology.INTEGER);
+			Attribute dateTime = AttributeFactory.createAttribute("date_time", Ontology.DATE_TIME);
+			Attribute date = AttributeFactory.createAttribute("date", Ontology.DATE);
+			Attribute time = AttributeFactory.createAttribute("time", Ontology.TIME);
+			List<Attribute> attributes = Arrays.asList(numeric, real, dateTime, date, time, integer);
+			ExampleSet set = ExampleSets.from(attributes).withBlankSize(150)
+					.withColumnFiller(numeric, i -> Math.random() > 0.7 ? Double.NaN : Math.random())
+					.withColumnFiller(real, i -> Math.random() > 0.7 ? Double.NaN : 42 + Math.random())
+					.withColumnFiller(integer, i -> Math.random() > 0.7 ? Double.NaN : Math.round(Math.random() * 100))
+					.withColumnFiller(dateTime,
+							i -> Math.random() > 0.7 ? Double.NaN : 1515410698d + Math.floor(Math.random() * 1000))
+					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
+							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
+					.withColumnFiller(time,
+							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+					.withRole(numeric, Attributes.LABEL_NAME)
+					.build();
+
+			IOTable table = BeltConverter.convert(set, CONTEXT);
+			ExampleSet view = TableViewCreator.INSTANCE.convertOnWriteView(table, true);
+
+			set.getAttributes().remove(set.getAttributes().get("real"));
+			Attribute numeric2 = AttributeFactory.createAttribute("numeric2", Ontology.NUMERICAL);
+			set.getExampleTable().addAttribute(numeric2);
+			set.getAttributes().addRegular(numeric2);
+			Attribute integer2 = AttributeFactory.createAttribute("integer2", Ontology.INTEGER);
+			set.getExampleTable().addAttribute(integer2);
+			set.getAttributes().addRegular(integer2);
+			set.getAttributes().remove(numeric2);
+
+
+			view.getAttributes().remove(view.getAttributes().get("real"));
+			numeric2 = AttributeFactory.createAttribute("numeric2", Ontology.NUMERICAL);
+			view.getExampleTable().addAttribute(numeric2);
+			view.getAttributes().addRegular(numeric2);
+			integer2 = AttributeFactory.createAttribute("integer2", Ontology.INTEGER);
+			view.getExampleTable().addAttribute(integer2);
+			view.getAttributes().addRegular(integer2);
+			view.getAttributes().remove(numeric2);
+
+			set.cleanup();
+			view.cleanup();
+
+			set.getExampleTable().removeAttribute(set.getAttributes().get("integer"));
+			view.getExampleTable().removeAttribute(view.getAttributes().get("integer"));
+
+			RapidAssert.assertEquals(set, view);
+			assertEquals(set.getExampleTable().getAttributeCount(), view.getExampleTable().getAttributeCount());
+		}
+
+		@Test
+		public void testCleanupAndConvertNominal() throws OperatorException {
+			Attribute nominal = AttributeFactory.createAttribute("nominal", Ontology.NOMINAL);
+			Attribute polynominal = AttributeFactory.createAttribute("polynominal", Ontology.POLYNOMINAL);
+			Attribute binominal = AttributeFactory.createAttribute("binominal", Ontology.BINOMINAL);
+			for (int i = 0; i < 5; i++) {
+				nominal.getMapping().mapString("nominalValue" + i);
+			}
+			for (int i = 0; i < 6; i++) {
+				polynominal.getMapping().mapString("polyValue" + i);
+			}
+			for (int i = 0; i < 2; i++) {
+				binominal.getMapping().mapString("binominalValue" + i);
+			}
+			List<Attribute> attributes = Arrays.asList(nominal,  polynominal, binominal);
+			Random random = new Random();
+			ExampleSet set = ExampleSets.from(attributes).withBlankSize(150)
+					.withColumnFiller(nominal, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(5))
+					.withColumnFiller(polynominal, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(6))
+					.withColumnFiller(binominal, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(2))
+					.build();
+
+			IOTable table = BeltConverter.convert(set, CONTEXT);
+			ExampleSet view = TableViewCreator.INSTANCE.convertOnWriteView(table, true);
+			Attribute viewPolynominal = view.getExampleTable().findAttribute("polynominal");
+			set.getAttributes().remove(set.getAttributes().get("polynominal"));
+			view.getAttributes().remove(view.getAttributes().get("polynominal"));
+			set.cleanup();
+			view.cleanup();
+			set.getExampleTable().removeAttribute(set.getAttributes().get("binominal"));
+			view.getExampleTable().removeAttribute(set.getAttributes().get("binominal"));
+
+			RapidAssert.assertEquals(set, view);
+			assertEquals(-1, viewPolynominal.getMapping().getIndex(""));
+			assertEquals(set.getExampleTable().getAttributeCount(), view.getExampleTable().getAttributeCount());
+		}
+
 	}
 
 	public static class Concurrency {
