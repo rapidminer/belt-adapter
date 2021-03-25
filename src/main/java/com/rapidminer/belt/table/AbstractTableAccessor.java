@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -31,6 +31,7 @@ import com.rapidminer.example.Attribute;
 import com.rapidminer.example.Attributes;
 import com.rapidminer.operator.OperatorException;
 import com.rapidminer.operator.error.AttributeNotFoundError;
+import com.rapidminer.tools.Ontology;
 import com.rapidminer.tools.container.Triple;
 
 
@@ -159,10 +160,17 @@ abstract class AbstractTableAccessor {
 		Attribute attribute = getAttribute(columnIndex);
 		if (attribute.isNominal()) {
 			return reader.read() - 1;
+		} else if (attribute.getValueType() == Ontology.TIME) {
+			double read = reader.read();
+			if (Double.isNaN(read)) {
+				return read;
+			}
+			return BeltConverter.nanoOfDayToLegacyTime((long)read);
 		} else {
 			return reader.read();
 		}
 	}
+
 
 	/**
 	 * @return the underlying {@link Table}

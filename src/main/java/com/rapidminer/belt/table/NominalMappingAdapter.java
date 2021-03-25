@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.rapidminer.example.AttributeTypeException;
+import com.rapidminer.example.table.BinominalMapping;
 import com.rapidminer.example.table.NominalMapping;
 
 
@@ -45,6 +46,8 @@ final class NominalMappingAdapter implements NominalMapping {
 
 	private final List<String> mapping;
 
+	private final boolean isBinominal;
+
 	private Map<String, Integer> symbolToIndexMap;
 
 	/**
@@ -54,7 +57,20 @@ final class NominalMappingAdapter implements NominalMapping {
 	 * 		a list that is a belt nominal mapping, in particular starting with {@code null}
 	 */
 	NominalMappingAdapter(List<String> mapping) {
+		this(mapping, false);
+	}
+
+	/**
+	 * Creates a mapping adapter.
+	 *
+	 * @param mapping
+	 * 		a list that is a belt nominal mapping, in particular starting with {@code null}
+	 * @param isBinominal
+	 * 		whether this mapping is binominal even though it has not exactly two values
+	 */
+	NominalMappingAdapter(List<String> mapping, boolean isBinominal) {
 		this.mapping = mapping;
+		this.isBinominal = isBinominal;
 		if (mapping.get(0) != null) {
 			throw new IllegalArgumentException("mapping must be a belt mapping");
 		}
@@ -96,6 +112,9 @@ final class NominalMappingAdapter implements NominalMapping {
 
 	@Override
 	public int getPositiveIndex() {
+		if (isBinominal) {
+			return BinominalMapping.POSITIVE_INDEX + 1;
+		}
 		ensureClassification();
 		if (mapIndex(1) == null) {
 			throw new AttributeTypeException("Attribute: Cannot use FIRST_CLASS_INDEX for negative class!");
@@ -108,11 +127,18 @@ final class NominalMappingAdapter implements NominalMapping {
 
 	@Override
 	public String getPositiveString() {
-		return mapIndex(getPositiveIndex());
+		int positiveIndex = getPositiveIndex();
+		if (isBinominal && positiveIndex >= mapping.size()) {
+			return null;
+		}
+		return mapIndex(positiveIndex);
 	}
 
 	@Override
 	public int getNegativeIndex() {
+		if (isBinominal) {
+			return BinominalMapping.NEGATIVE_INDEX + 1;
+		}
 		ensureClassification();
 		if (mapIndex(1) == null) {
 			throw new AttributeTypeException("Attribute: Cannot use FIRST_CLASS_INDEX for negative class!");
@@ -122,7 +148,11 @@ final class NominalMappingAdapter implements NominalMapping {
 
 	@Override
 	public String getNegativeString() {
-		return mapIndex(getNegativeIndex());
+		int negativeIndex = getNegativeIndex();
+		if (isBinominal && negativeIndex >= mapping.size()) {
+			return null;
+		}
+		return mapIndex(negativeIndex);
 	}
 
 	@Override

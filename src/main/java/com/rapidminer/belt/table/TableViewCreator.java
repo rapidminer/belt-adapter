@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -90,7 +90,8 @@ public enum TableViewCreator{
 		table = adjustDictionaries(table);
 
 		for (int i = 0; i < table.width(); i++) {
-			if (table.column(i).type().id() == Column.TypeId.DATE_TIME) {
+			Column.TypeId id = table.column(i).type().id();
+			if (id == Column.TypeId.DATE_TIME || id == Column.TypeId.TIME) {
 				return new DatetimeTableWrapper(table);
 			}
 		}
@@ -128,14 +129,14 @@ public enum TableViewCreator{
 						getValueType(table, label, i));
 				if (attribute.isNominal()) {
 					setMapping(column, attribute);
-				} else if (attribute.isDateTime()) {
+				} else if (column.type().id() == Column.TypeId.DATE_TIME) {
 					numberOfDatetime++;
 				}
 			} else {
 				if (throwOnAdvanced) {
 					throw new ConversionException(label, column.type());
 				} else {
-					attribute = AttributeFactory.createAttribute(label, Ontology.POLYNOMINAL);
+					attribute = AttributeFactory.createAttribute(label, Ontology.NOMINAL);
 					attribute.setMapping(CANNOT_DISPLAY);
 				}
 			}
@@ -165,6 +166,35 @@ public enum TableViewCreator{
 	public Table replacedAdvancedWithError(Table table) {
 		return replaceAdvancedWithErrorMessage(table, oldColumn -> "Error:" +
 				" Cannot display advanced column of " + oldColumn.type());
+	}
+
+	/**
+	 * Compacts all nominal dictionaries with gaps.
+	 *
+	 * @param table
+	 * 		the table with the dictionaries to compact
+	 * @return a new table with all columns with compact dictionaries or the same table if that was	already the case
+	 */
+	public Table compactDictionaries(Table table) {
+		Column[] newColumns = null;
+		int index = 0;
+		for (Column column : table.getColumns()) {
+			if (column.type().id() == Column.TypeId.NOMINAL) {
+				Dictionary dict = column.getDictionary();
+				if (dict.size() != dict.maximalIndex()) {
+					if (newColumns == null) {
+						newColumns = Arrays.copyOf(table.getColumns(), table.width());
+					}
+					newColumns[index] = Columns.compactDictionary(column);
+				}
+			}
+			index++;
+		}
+		if (newColumns == null) {
+			return table;
+		} else {
+			return new Table(newColumns, table.labelArray(), table.getMetaData());
+		}
 	}
 
 	/**

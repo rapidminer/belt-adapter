@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -349,7 +349,7 @@ public class ConvertOnWriteExampleTableTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -549,7 +549,7 @@ public class ConvertOnWriteExampleTableTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.build();
 
 			IOTable table = BeltConverter.convert(set, CONTEXT);
@@ -636,7 +636,7 @@ public class ConvertOnWriteExampleTableTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.build();
 
 			IOTable table = BeltConverter.convert(set, CONTEXT);
@@ -691,7 +691,7 @@ public class ConvertOnWriteExampleTableTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.build();
 
 			IOTable table = BeltConverter.convert(set, CONTEXT);
@@ -868,7 +868,7 @@ public class ConvertOnWriteExampleTableTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -905,7 +905,7 @@ public class ConvertOnWriteExampleTableTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -1345,8 +1345,8 @@ public class ConvertOnWriteExampleTableTest {
 						e.printStackTrace();
 					}
 					try {
-					exampleTable.addAttribute(att);
-					int index = att.getTableIndex();
+						exampleTable.addAttribute(att);
+						int index = att.getTableIndex();
 						exampleTable.removeAttribute(index);
 						try {
 							exampleTable.findAttribute("test007");
@@ -1520,7 +1520,7 @@ public class ConvertOnWriteExampleTableTest {
 				.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 						230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 				.withColumnFiller(time,
-						i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+						i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 				.build();
 	}
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -49,7 +49,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 	private static final long serialVersionUID = 548442173952040494L;
 
 	private enum ReadType {
-		NUMERIC, NOMINAL, DATETIME
+		NUMERIC, NOMINAL, DATETIME, TIME
 	}
 
 	/**
@@ -75,6 +75,8 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 				readTypes[i] = ReadType.DATETIME;
 			} else if (table.column(i).type().id() == Column.TypeId.NOMINAL) {
 				readTypes[i] = ReadType.NOMINAL;
+			} else if (table.column(i).type().id() == Column.TypeId.TIME) {
+				readTypes[i] = ReadType.TIME;
 			} else {
 				readTypes[i] = ReadType.NUMERIC;
 			}
@@ -146,10 +148,20 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 					return row.getNumeric(index) - 1;
 				case DATETIME:
 					return getDateTime(row, index);
+				case TIME:
+					return getTime(row, index);
 				case NUMERIC:
 				default:
 					return row.getNumeric(index);
 			}
+		}
+
+		private double getTime(MixedRow row, int index) {
+			double read = row.getNumeric(index);
+			if (Double.isNaN(read)) {
+				return Double.NaN;
+			}
+			return BeltConverter.nanoOfDayToLegacyTime((long)read);
 		}
 
 		/**
@@ -157,7 +169,7 @@ public final class DatetimeTableWrapper extends RowwiseStatisticsExampleSet {
 		 */
 		private static double getDateTime(MixedRow row, int index) {
 			Instant instant = (Instant) row.getObject(index);
-			return instant == null ? Double.NaN : instant.toEpochMilli();
+			return instant == null ? Double.NaN : BeltConverter.toEpochMilli(instant);
 		}
 
 		@Override

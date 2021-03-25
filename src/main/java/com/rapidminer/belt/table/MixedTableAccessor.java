@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -194,6 +194,6 @@ class MixedTableAccessor extends AbstractTableAccessor {
 			reader.setPosition(rowIndex - 1);
 		}
 		Instant instant = reader.read();
-		return instant == null ? Double.NaN : instant.toEpochMilli();
+		return instant == null ? Double.NaN : BeltConverter.toEpochMilli(instant);
 	}
 }

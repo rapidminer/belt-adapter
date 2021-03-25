@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -19,9 +19,13 @@
 package com.rapidminer.belt.table;
 
 import static com.rapidminer.belt.table.BeltConverter.CONFIDENCE_PREFIX;
+import static com.rapidminer.belt.table.BeltConverter.IOOBJECT_USER_DATA_COLUMN_META_DATA_KEY;
+import static com.rapidminer.belt.table.BeltConverter.MILLIS_PER_SECOND;
+import static com.rapidminer.belt.table.BeltConverter.NANOS_PER_MILLI_SECOND;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -34,13 +38,16 @@ import java.util.concurrent.ExecutionException;
 import com.rapidminer.adaption.belt.ContextAdapter;
 import com.rapidminer.adaption.belt.IOTable;
 import com.rapidminer.belt.buffer.Buffers;
-import com.rapidminer.belt.buffer.NominalBuffer;
 import com.rapidminer.belt.buffer.DateTimeBuffer;
+import com.rapidminer.belt.buffer.NominalBuffer;
 import com.rapidminer.belt.buffer.NumericBuffer;
+import com.rapidminer.belt.buffer.TimeBuffer;
 import com.rapidminer.belt.column.BooleanDictionary;
 import com.rapidminer.belt.column.CategoricalColumn;
 import com.rapidminer.belt.column.Column;
 import com.rapidminer.belt.column.ColumnType;
+import com.rapidminer.belt.column.DateTimeColumn;
+import com.rapidminer.belt.column.TimeColumn;
 import com.rapidminer.belt.util.ColumnMetaData;
 import com.rapidminer.belt.util.ColumnReference;
 import com.rapidminer.belt.util.ColumnRole;
@@ -55,6 +62,7 @@ import com.rapidminer.example.Example;
 import com.rapidminer.example.ExampleSet;
 import com.rapidminer.example.SimpleAttributes;
 import com.rapidminer.example.set.AbstractExampleSet;
+import com.rapidminer.example.set.HeaderExampleSet;
 import com.rapidminer.example.set.MappingBasedExampleSet;
 import com.rapidminer.example.set.SimpleExampleSet;
 import com.rapidminer.example.table.BinominalAttribute;
@@ -65,6 +73,7 @@ import com.rapidminer.example.table.NumericalAttribute;
 import com.rapidminer.example.table.PolynominalAttribute;
 import com.rapidminer.example.table.internal.ColumnarExampleTable;
 import com.rapidminer.tools.Ontology;
+import com.rapidminer.tools.Tools;
 
 
 /**
@@ -87,19 +96,15 @@ enum ToTableConverter {
 	private static final Set<Class<? extends Attribute>> SAFE_ATTRIBUTES = new HashSet<>(5);
 
 	/**
-	 * Number of milli-seconds in a second
-	 */
-	private static final long MILLISECONDS_PER_SECOND = 1_000;
-
-	/**
-	 * Number of nano-seconds in a milli-second
-	 */
-	private static final long NANOS_PER_MILLI_SECOND = 1_000_000;
-
-	/**
 	 * The length of the {@link BeltConverter#CONFIDENCE_PREFIX}
 	 */
 	private static final int CONFIDENCE_PREFIX_LENGTH = CONFIDENCE_PREFIX.length();
+
+	private static final Column EMPTY_REAL_COLUMN = Buffers.realBuffer(0).toColumn();
+	private static final Column EMPTY_INT_COLUMN = Buffers.integer53BitBuffer(0).toColumn();
+	private static final DateTimeColumn EMPTY_DATE_COLUMN = Buffers.dateTimeBuffer(0, false).toColumn();
+	private static final DateTimeColumn EMPTY_DATETIME_COLUMN = Buffers.dateTimeBuffer(0, true).toColumn();
+	private static final TimeColumn EMPTY_TIME_COLUMN = Buffers.timeBuffer(0).toColumn();
 
 	static {
 		SAFE_ATTRIBUTES.add(DateAttribute.class);
@@ -287,7 +292,7 @@ enum ToTableConverter {
 			testSet = ((MappingBasedExampleSet) testSet).getParentClone();
 		}
 		if (mapping != null) {
-			newTable = newTable.map(mapping, true);
+			newTable = newTable.map(mapping, true, ContextAdapter.adapt(context));
 		}
 		return createIOTable(simpleOrMappingBased, newTable);
 	}
@@ -403,12 +408,12 @@ enum ToTableConverter {
 					columns[index] = getBinominalColumn(table, size, attribute);
 					return null;
 				};
-			case Ontology.POLYNOMINAL:
+			case Ontology.NOMINAL:
 				return () -> {
 					columns[index] = getNominalColumn(table, size, attribute);
 					return null;
 				};
-			case Ontology.NOMINAL:
+			case Ontology.POLYNOMINAL:
 			case Ontology.STRING:
 			case Ontology.FILE_PATH:
 				storeOntology(meta, attribute);
@@ -428,9 +433,8 @@ enum ToTableConverter {
 					return null;
 				};
 			case Ontology.TIME:
-				storeOntology(meta, attribute);
 				return () -> {
-					columns[index] = getNanosecondDateColumn(size, table, attribute);
+					columns[index] = getTimeColumn(table, size, attribute);
 					return null;
 				};
 			default:
@@ -444,18 +448,8 @@ enum ToTableConverter {
 	 * ExampleTable, Attribute, Column[], int)}.
 	 */
 	private static void storeType(Map<String, List<ColumnMetaData>> meta, Attribute attribute) {
-		switch (attribute.getValueType()) {
-			case Ontology.TIME:
-			case Ontology.DATE:
-			case Ontology.BINOMINAL:
-			case Ontology.NUMERICAL:
-			case Ontology.NOMINAL:
-			case Ontology.STRING:
-			case Ontology.FILE_PATH:
-				storeOntology(meta, attribute);
-				break;
-			default:
-				//do nothing
+		if (!LegacyType.DIRECTLY_MAPPED_ONTOLOGIES.contains(attribute.getValueType())) {
+			storeOntology(meta, attribute);
 		}
 	}
 
@@ -506,7 +500,7 @@ enum ToTableConverter {
 			copyDataAndType(builder, exampleSet, size, attribute);
 			if (role.isSpecial()) {
 				String specialName = role.getSpecialName();
-				ColumnRole beltRole = BeltConverter.convert(specialName);
+				ColumnRole beltRole = BeltConverter.convertRole(specialName);
 				builder.addMetaData(attribute.getName(), beltRole);
 				if (beltRole == ColumnRole.METADATA) {
 					builder.addMetaData(attribute.getName(), new LegacyRole(specialName));
@@ -547,16 +541,16 @@ enum ToTableConverter {
 				builder.add(name, getIntegerColumn(exampleSet, size, attribute));
 				break;
 			case Ontology.BINOMINAL:
-				CategoricalColumn binominalColumn = getBinominalColumn(exampleSet, size, attribute);
+				Column binominalColumn = getBinominalColumn(exampleSet, size, attribute);
 				builder.add(name, binominalColumn);
 				builder.addMetaData(name, LegacyType.BINOMINAL);
 				break;
 			case Ontology.NOMINAL:
 				builder.add(name, getNominalColumn(exampleSet, size, attribute));
-				builder.addMetaData(name, LegacyType.NOMINAL);
 				break;
 			case Ontology.POLYNOMINAL:
 				builder.add(name, getNominalColumn(exampleSet, size, attribute));
+				builder.addMetaData(name, LegacyType.POLYNOMINAL);
 				break;
 			case Ontology.STRING:
 				builder.add(name, getNominalColumn(exampleSet, size, attribute));
@@ -574,16 +568,17 @@ enum ToTableConverter {
 				builder.add(name, getDateTimeColumn(exampleSet, size, attribute));
 				break;
 			case Ontology.TIME:
-				builder.add(name, getDateTimeColumn(exampleSet, size, attribute));
-				builder.addMetaData(name, LegacyType.TIME);
+				builder.add(name, getTimeColumn(exampleSet, size, attribute));
 				break;
 			default:
 				throw new UnsupportedOperationException(MESSAGE_UNKNOWN_TYPE);
 		}
 	}
 
-
 	private static Column getDateTimeColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+		if (size == 0) {
+			return EMPTY_DATETIME_COLUMN;
+		}
 		DateTimeBuffer buffer = Buffers.dateTimeBuffer(size, true, false);
 		int i = 0;
 		for (Example example : exampleSet) {
@@ -592,14 +587,36 @@ enum ToTableConverter {
 				buffer.set(i++, null);
 			} else {
 				long longValue = (long) value;
-				buffer.set(i++, Math.floorDiv(longValue, MILLISECONDS_PER_SECOND),
-						(int) (Math.floorMod(longValue, MILLISECONDS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+				buffer.set(i++, Math.floorDiv(longValue, MILLIS_PER_SECOND),
+						(int) (Math.floorMod(longValue, MILLIS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+			}
+		}
+		return buffer.toColumn();
+	}
+
+	private static Column getTimeColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+		if (size == 0) {
+			return EMPTY_TIME_COLUMN;
+		}
+		TimeBuffer buffer = Buffers.timeBuffer(size, false);
+		int i = 0;
+		Calendar calendar = Tools.getPreferredCalendar();
+		for (Example example : exampleSet) {
+			double value = example.getValue(attribute);
+			if (Double.isNaN(value)) {
+				buffer.set(i++, null);
+			} else {
+				long nanos = BeltConverter.legacyTimeDoubleToNanoOfDay(value, calendar);
+				buffer.set(i++, nanos);
 			}
 		}
 		return buffer.toColumn();
 	}
 
 	private static Column getDateColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+		if (size == 0) {
+			return EMPTY_DATE_COLUMN;
+		}
 		DateTimeBuffer buffer = Buffers.dateTimeBuffer(size, false, false);
 		int i = 0;
 		for (Example example : exampleSet) {
@@ -607,13 +624,16 @@ enum ToTableConverter {
 			if (Double.isNaN(value)) {
 				buffer.set(i++, null);
 			} else {
-				buffer.set(i++, ((long) value) / MILLISECONDS_PER_SECOND);
+				buffer.set(i++, ((long) value) / MILLIS_PER_SECOND);
 			}
 		}
 		return buffer.toColumn();
 	}
 
 	private static Column getIntegerColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+		if (size == 0) {
+			return EMPTY_INT_COLUMN;
+		}
 		NumericBuffer intBuffer = Buffers.integer53BitBuffer(size, false);
 		int j = 0;
 		for (Example example : exampleSet) {
@@ -623,6 +643,9 @@ enum ToTableConverter {
 	}
 
 	private static Column getRealColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+		if (size == 0) {
+			return EMPTY_REAL_COLUMN;
+		}
 		NumericBuffer buffer = Buffers.realBuffer(size, false);
 		int i = 0;
 		for (Example example : exampleSet) {
@@ -635,7 +658,7 @@ enum ToTableConverter {
 	 * Copies a binominal column from the example set by copying the mapping and the category data with a fallback in
 	 * case the mapping is broken (contains null). Creates a boolean column if possible.
 	 */
-	private static CategoricalColumn getBinominalColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+	private static Column getBinominalColumn(ExampleSet exampleSet, int size, Attribute attribute) {
 		NominalMapping legacyMapping = attribute.getMapping();
 		if (legacyMapping.getPositiveString() != null && (legacyMapping.getNegativeString() == null
 				|| legacyMapping.getPositiveString().equals(legacyMapping.getNegativeString()))) {
@@ -654,18 +677,24 @@ enum ToTableConverter {
 		}
 		byte[] data = new byte[size % 4 == 0 ? size / 4 : size / 4 + 1];
 
-		int i = 0;
-		for (Example example : exampleSet) {
-			double value = example.getValue(attribute);
-			if (!Double.isNaN(value)) {
-				IntegerFormats.writeUInt2(data, i, (int) (value + 1));
+		if (size > 0) {
+			int i = 0;
+			for (Example example : exampleSet) {
+				double value = example.getValue(attribute);
+				if (!Double.isNaN(value)) {
+					IntegerFormats.writeUInt2(data, i, (int) (value + 1));
+				}
+				i++;
 			}
-			i++;
 		}
 
 		PackedIntegers packed = new PackedIntegers(data, Format.UNSIGNED_INT2, size);
 		//convert to a boolean column
 		int positiveIndex = legacyMapping.getPositiveIndex() + 1;
+		if (legacyMapping instanceof NominalMappingAdapter) {
+			// no shift for adapter
+			positiveIndex = legacyMapping.getPositiveIndex();
+		}
 		if (positiveIndex >= mapping.size()) {
 			//there is no positive value, only a negative one
 			positiveIndex = BooleanDictionary.NO_ENTRY;
@@ -678,7 +707,7 @@ enum ToTableConverter {
 	 * case
 	 * the mapping is broken (contains null or contains a value twice).
 	 */
-	private static CategoricalColumn getNominalColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+	private static Column getNominalColumn(ExampleSet exampleSet, int size, Attribute attribute) {
 		NominalMapping legacyMapping = attribute.getMapping();
 		List<String> mapping = new ArrayList<>(legacyMapping.size() + 1);
 		mapping.add(null);
@@ -692,13 +721,15 @@ enum ToTableConverter {
 			}
 		}
 		int[] data = new int[size];
-		int i = 0;
-		for (Example example : exampleSet) {
-			double value = example.getValue(attribute);
-			if (Double.isNaN(value)) {
-				data[i++] = 0;
-			} else {
-				data[i++] = (int) value + 1;
+		if (size > 0) {
+			int i = 0;
+			for (Example example : exampleSet) {
+				double value = example.getValue(attribute);
+				if (Double.isNaN(value)) {
+					data[i++] = 0;
+				} else {
+					data[i++] = (int) value + 1;
+				}
 			}
 		}
 		return ColumnAccessor.get().newCategoricalColumn(ColumnType.NOMINAL, data, mapping);
@@ -707,8 +738,12 @@ enum ToTableConverter {
 	/**
 	 * Copies a nominal column from the example set using a nominal buffer.
 	 */
-	private static CategoricalColumn getBufferColumn(ExampleSet exampleSet, int size, Attribute attribute) {
-		NominalBuffer nominalBuffer = BufferAccessor.get().newInt32Buffer(ColumnType.NOMINAL, size);
+	private static Column getBufferColumn(ExampleSet exampleSet, int size, Attribute attribute) {
+		if (exampleSet instanceof HeaderExampleSet) {
+			return handleWrongNominalHeader(attribute);
+		}
+		NominalBuffer nominalBuffer =
+				BufferAccessor.get().newInt32Buffer(ColumnType.NOMINAL, size);
 		int j = 0;
 		NominalMapping mapping = attribute.getMapping();
 		for (Example example : exampleSet) {
@@ -720,6 +755,23 @@ enum ToTableConverter {
 			}
 		}
 		return nominalBuffer.toColumn();
+	}
+
+	/**
+	 * Handle the case where the nominal mapping of the attribute is broken in a way that is very rare but not
+	 * impossible by the mapping api. For example, it could happen that a value appears more than once or that there
+	 * are {@code null}s in the middle.
+	 */
+	private static Column handleWrongNominalHeader(Attribute attribute) {
+		NominalMapping mapping = attribute.getMapping();
+		List<String> values = mapping.getValues();
+		NominalBuffer nominalBuffer = BufferAccessor.get().newInt32Buffer(ColumnType.NOMINAL, values.size());
+		int i = 0;
+		for (String value : values) {
+			nominalBuffer.set(i++, value);
+		}
+		CategoricalColumn categoricalColumn = nominalBuffer.toColumn();
+		return categoricalColumn.stripData();
 	}
 
 	/**
@@ -780,12 +832,12 @@ enum ToTableConverter {
 					columns[index] = getBinominalColumn(exampleSet, size, attribute);
 					return null;
 				};
-			case Ontology.POLYNOMINAL:
+			case Ontology.NOMINAL:
 				return () -> {
 					columns[index] = getNominalColumn(exampleSet, size, attribute);
 					return null;
 				};
-			case Ontology.NOMINAL:
+			case Ontology.POLYNOMINAL:
 			case Ontology.STRING:
 			case Ontology.FILE_PATH:
 				storeOntology(meta, attribute);
@@ -805,9 +857,8 @@ enum ToTableConverter {
 					return null;
 				};
 			case Ontology.TIME:
-				storeOntology(meta, attribute);
 				return () -> {
-					columns[index] = getDateTimeColumn(exampleSet, size, attribute);
+					columns[index] = getTimeColumn(exampleSet, size, attribute);
 					return null;
 				};
 			default:
@@ -837,10 +888,10 @@ enum ToTableConverter {
 				columns[index] = getBinominalColumn(exampleSet, size, attribute);
 				storeOntology(meta, attribute);
 				break;
-			case Ontology.POLYNOMINAL:
+			case Ontology.NOMINAL:
 				columns[index] = getNominalColumn(exampleSet, size, attribute);
 				break;
-			case Ontology.NOMINAL:
+			case Ontology.POLYNOMINAL:
 			case Ontology.STRING:
 			case Ontology.FILE_PATH:
 				storeOntology(meta, attribute);
@@ -854,8 +905,7 @@ enum ToTableConverter {
 				columns[index] = getDateTimeColumn(exampleSet, size, attribute);
 				break;
 			case Ontology.TIME:
-				storeOntology(meta, attribute);
-				columns[index] = getDateTimeColumn(exampleSet, size, attribute);
+				columns[index] = getTimeColumn(exampleSet, size, attribute);
 				break;
 			default:
 				throw new UnsupportedOperationException(MESSAGE_UNKNOWN_TYPE);
@@ -907,7 +957,7 @@ enum ToTableConverter {
 	private static void storeRole(AttributeRole role, Attribute attribute, Map<String, List<ColumnMetaData>> meta,
 								  Attribute prediction) {
 		String specialName = role.getSpecialName();
-		ColumnRole beltRole = BeltConverter.convert(specialName);
+		ColumnRole beltRole = BeltConverter.convertRole(specialName);
 		List<ColumnMetaData> columnMeta =
 				meta.computeIfAbsent(attribute.getName(), s -> new ArrayList<>(2));
 		columnMeta.add(beltRole);
@@ -935,8 +985,23 @@ enum ToTableConverter {
 				buffer.set(i, null);
 			} else {
 				long longValue = (long) value;
-				buffer.set(i, Math.floorDiv(longValue, MILLISECONDS_PER_SECOND),
-						(int) (Math.floorMod(longValue, MILLISECONDS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+				buffer.set(i, Math.floorDiv(longValue, MILLIS_PER_SECOND),
+						(int) (Math.floorMod(longValue, MILLIS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+			}
+		}
+		return buffer.toColumn();
+	}
+
+	private static Column getTimeColumn(ExampleTable table, int size, Attribute attribute) {
+		TimeBuffer buffer = Buffers.timeBuffer(size, false);
+		Calendar calendar = Tools.getPreferredCalendar();
+		for (int i = 0; i < table.size(); i++) {
+			double value = table.getDataRow(i).get(attribute);
+			if (Double.isNaN(value)) {
+				buffer.set(i, null);
+			} else {
+				long nanos = BeltConverter.legacyTimeDoubleToNanoOfDay(value, calendar);
+				buffer.set(i, nanos);
 			}
 		}
 		return buffer.toColumn();
@@ -949,7 +1014,7 @@ enum ToTableConverter {
 			if (Double.isNaN(value)) {
 				buffer.set(i, null);
 			} else {
-				buffer.set(i, ((long) value) / MILLISECONDS_PER_SECOND);
+				buffer.set(i, ((long) value) / MILLIS_PER_SECOND);
 			}
 		}
 		return buffer.toColumn();
@@ -1103,7 +1168,7 @@ enum ToTableConverter {
 		try {
 			@SuppressWarnings("unchecked")
 			Map<String, List<ColumnMetaData>> beltMetaData =
-					(Map<String, List<ColumnMetaData>>) set.getUserData(BeltConverter.IOOBJECT_USER_DATA_COLUMN_META_DATA_KEY);
+					(Map<String, List<ColumnMetaData>>) set.getUserData(IOOBJECT_USER_DATA_COLUMN_META_DATA_KEY);
 			if (beltMetaData != null) {
 				beltMetaData.forEach((label, columnMetaDataList) -> {
 					if (usedLabels.contains(label)) {
@@ -1146,7 +1211,7 @@ enum ToTableConverter {
 		try {
 			@SuppressWarnings("unchecked")
 			Map<String, List<ColumnMetaData>> beltMetaData =
-					(Map<String, List<ColumnMetaData>>) set.getUserData(BeltConverter.IOOBJECT_USER_DATA_COLUMN_META_DATA_KEY);
+					(Map<String, List<ColumnMetaData>>) set.getUserData(IOOBJECT_USER_DATA_COLUMN_META_DATA_KEY);
 			if (beltMetaData != null) {
 				beltMetaData.forEach((label, columnMetaDataList) -> {
 					if (usedLabels.contains(label)) {

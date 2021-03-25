@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -19,6 +19,7 @@
 package com.rapidminer.belt.table;
 
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -87,7 +88,8 @@ enum FromTableConverter {
 			attributes.add(new AttributeRole(attribute));
 			if (attribute.isNominal()) {
 				List<String> mapping = ColumnAccessor.get().getDictionaryList(column.getDictionary());
-				attribute.setMapping(new NominalMappingAdapter(mapping));
+				attribute.setMapping(new NominalMappingAdapter(mapping,
+						attribute.getValueType() == Ontology.BINOMINAL));
 			}
 			i++;
 		}
@@ -274,6 +276,13 @@ enum FromTableConverter {
 					}
 					break;
 				case Ontology.TIME:
+					if (column.type().id() == Column.TypeId.TIME) {
+						copyToTime(set, attribute, column);
+					} else {
+						// date-time can be converted to time for legacy reasons
+						copyToDateTime(set, attribute, column);
+					}
+					break;
 				case Ontology.DATE_TIME:
 				case Ontology.DATE:
 					copyToDateTime(set, attribute, column);
@@ -292,7 +301,22 @@ enum FromTableConverter {
 			if (read == null) {
 				example.setValue(attribute, Double.NaN);
 			} else {
-				example.setValue(attribute, read.toEpochMilli());
+				example.setValue(attribute, BeltConverter.toEpochMilli(read));
+			}
+		}
+	}
+
+	private static void copyToTime(ExampleSet set, Attribute attribute, Column column) {
+		ObjectReader<LocalTime> reader =
+				Readers.objectReader(column, LocalTime.class);
+		for (Example example : set) {
+			LocalTime read = reader.read();
+			if (read == null) {
+				example.setValue(attribute, Double.NaN);
+			} else {
+				// add the negative time zone offset since the time zone offset gets added
+				// for the legacy time in studio view and operators
+				example.setValue(attribute, BeltConverter.nanoOfDayToLegacyTime(read.toNanoOfDay()));
 			}
 		}
 	}
@@ -411,6 +435,13 @@ enum FromTableConverter {
 					});
 					break;
 				case Ontology.TIME:
+					if (column.type().id() == Column.TypeId.TIME) {
+						copier.add(() -> copyTimeColumnToRows(columnTable, attribute, column));
+					} else {
+						// date-time can be converted to time for legacy reasons
+						copier.add(() -> copyDateTimeColumnToRows(columnTable, attribute, column));
+					}
+					break;
 				case Ontology.DATE_TIME:
 				case Ontology.DATE:
 					copier.add(() -> copyDateTimeColumnToRows(columnTable, attribute, column));
@@ -434,7 +465,23 @@ enum FromTableConverter {
 			if (read == null) {
 				columnTable.getDataRow(row).set(attribute, Double.NaN);
 			} else {
-				columnTable.getDataRow(row).set(attribute, read.toEpochMilli());
+				columnTable.getDataRow(row).set(attribute, BeltConverter.toEpochMilli(read));
+			}
+		}
+		return null;
+	}
+
+	private static Void copyTimeColumnToRows(ColumnarExampleTable columnTable, Attribute attribute, Column
+			column) {
+		ObjectReader<LocalTime> reader = Readers.objectReader(column, LocalTime.class);
+		for (int row = 0; row < columnTable.size(); row++) {
+			LocalTime read = reader.read();
+			if (read == null) {
+				columnTable.getDataRow(row).set(attribute, Double.NaN);
+			} else {
+				// add the negative time zone offset since the time zone offset gets added
+				// for the legacy time in studio view and operators
+				columnTable.getDataRow(row).set(attribute, BeltConverter.nanoOfDayToLegacyTime(read.toNanoOfDay()));
 			}
 		}
 		return null;

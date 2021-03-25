@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -45,6 +45,7 @@ import com.rapidminer.adaption.belt.ContextAdapter;
 import com.rapidminer.adaption.belt.IOTable;
 import com.rapidminer.belt.buffer.Buffers;
 import com.rapidminer.belt.column.DateTimeColumn;
+import com.rapidminer.belt.column.TimeColumn;
 import com.rapidminer.belt.column.type.StringSet;
 import com.rapidminer.belt.execution.Context;
 import com.rapidminer.belt.util.ColumnAnnotation;
@@ -444,15 +445,13 @@ public class ViewToTableConverterTest {
 	public void testNotSafeColumn() {
 		Table table = getTable();
 		Context ctx = ContextAdapter.adapt(CONTEXT);
-		table = Builders.newTableBuilder(table).remove("textSet").remove("time")
+		table = Builders.newTableBuilder(table).remove("textSet")
 				.add("numeric", table.column("real"))
 				.addMetaData("numeric", LegacyType.NUMERICAL)
 				.add("nominal2", table.column("nominal"))
-				.addMetaData("nominal2", LegacyType.NOMINAL)
+				.addMetaData("nominal2", LegacyType.POLYNOMINAL)
 				.add("studio date", table.column("date-time"))
 				.addMetaData("studio date", LegacyType.DATE)
-				.add("studio time", table.column("date-time"))
-				.addMetaData("studio time", LegacyType.TIME)
 				.removeMetaData("boolean", ColumnRole.class)
 				.addMetaData("boolean", LegacyType.BINOMINAL)
 				.addMetaData("boolean", ColumnRole.LABEL)
@@ -485,11 +484,14 @@ public class ViewToTableConverterTest {
 		//loosing nanoseconds when reading via studio wrapper
 		DateTimeColumn studioDateTimeColumn = table.transform("date-time")
 				.applyObjectToDateTime(Instant.class, i -> i == null ? null : Instant.ofEpochMilli(i.toEpochMilli()), ctx).toColumn();
+		TimeColumn lowPrecisionTimeColumn = table.transform("time").applyObjectToTime(LocalTime.class,
+				i -> i == null ? null : LocalTime.ofNanoOfDay(i.toNanoOfDay() / 1_000_000 * 1_000_000), ctx).toColumn();
 		DateTimeColumn studioDateColumn = table.transform("date-time")
 				.applyObjectToDateTime(Instant.class, i -> i == null ? null : Instant.ofEpochSecond(i.getEpochSecond()), ctx).toColumn();
 		Table expected = Builders.newTableBuilder(table).replace("date-time", studioDateTimeColumn)
 				.replace("studio date", studioDateColumn)
-				.replace("studio time", studioDateTimeColumn).build(ctx);
+				.replace("time", lowPrecisionTimeColumn)
+				.build(ctx);
 
 		RapidAssert.assertEquals(new IOTable(expected), converted);
 		Assert.assertEquals(expected.getMetaData(), converted.getTable().getMetaData());

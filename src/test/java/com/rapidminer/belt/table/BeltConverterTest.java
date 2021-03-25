@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -91,10 +92,12 @@ import com.rapidminer.example.utils.ExampleSetBuilder;
 import com.rapidminer.example.utils.ExampleSets;
 import com.rapidminer.operator.Annotations;
 import com.rapidminer.operator.tools.ExpressionEvaluationException;
+import com.rapidminer.studio.concurrency.internal.SequentialConcurrencyContext;
 import com.rapidminer.test.asserter.AsserterFactoryRapidMiner;
 import com.rapidminer.test_utils.RapidAssert;
 import com.rapidminer.tools.Ontology;
 import com.rapidminer.tools.ParameterService;
+import com.rapidminer.tools.Tools;
 
 
 /**
@@ -495,19 +498,19 @@ public class BeltConverterTest {
 					new Column.TypeId[]{Column.TypeId.NOMINAL, Column.TypeId.REAL, Column.TypeId.INTEGER_53_BIT,
 							Column.TypeId.REAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL,
 							Column.TypeId.NOMINAL, Column.TypeId.DATE_TIME, Column.TypeId.DATE_TIME,
-							Column.TypeId.DATE_TIME};
+							Column.TypeId.TIME};
 			assertArrayEquals(expected, result);
 
 			com.rapidminer.belt.table.LegacyType[] legacyResult = table.labels().stream()
 					.map(label -> table.getFirstMetaData(label, com.rapidminer.belt.table.LegacyType.class))
 					.toArray(com.rapidminer.belt.table.LegacyType[]::new);
 			com.rapidminer.belt.table.LegacyType[] legacyExpected =
-					new com.rapidminer.belt.table.LegacyType[]{com.rapidminer.belt.table.LegacyType.NOMINAL,
+					new com.rapidminer.belt.table.LegacyType[]{null,
 							com.rapidminer.belt.table.LegacyType.NUMERICAL, null, null,
 							com.rapidminer.belt.table.LegacyType.STRING,
-							com.rapidminer.belt.table.LegacyType.BINOMINAL, null,
+							com.rapidminer.belt.table.LegacyType.BINOMINAL, com.rapidminer.belt.table.LegacyType.POLYNOMINAL,
 							com.rapidminer.belt.table.LegacyType.FILE_PATH, null,
-							com.rapidminer.belt.table.LegacyType.DATE, com.rapidminer.belt.table.LegacyType.TIME};
+							com.rapidminer.belt.table.LegacyType.DATE, null};
 			assertArrayEquals(legacyExpected, legacyResult);
 		}
 
@@ -528,19 +531,19 @@ public class BeltConverterTest {
 					new Column.TypeId[]{Column.TypeId.NOMINAL, Column.TypeId.REAL, Column.TypeId.INTEGER_53_BIT,
 							Column.TypeId.REAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL, Column.TypeId.NOMINAL,
 							Column.TypeId.NOMINAL, Column.TypeId.DATE_TIME, Column.TypeId.DATE_TIME,
-							Column.TypeId.DATE_TIME};
+							Column.TypeId.TIME};
 			assertArrayEquals(expected, result);
 
 			com.rapidminer.belt.table.LegacyType[] legacyResult = table.labels().stream()
 					.map(label -> table.getFirstMetaData(label, com.rapidminer.belt.table.LegacyType.class))
 					.toArray(com.rapidminer.belt.table.LegacyType[]::new);
 			com.rapidminer.belt.table.LegacyType[] legacyExpected =
-					new com.rapidminer.belt.table.LegacyType[]{com.rapidminer.belt.table.LegacyType.NOMINAL,
+					new com.rapidminer.belt.table.LegacyType[]{null,
 							com.rapidminer.belt.table.LegacyType.NUMERICAL, null, null,
 							com.rapidminer.belt.table.LegacyType.STRING,
-							com.rapidminer.belt.table.LegacyType.BINOMINAL, null,
+							com.rapidminer.belt.table.LegacyType.BINOMINAL, com.rapidminer.belt.table.LegacyType.POLYNOMINAL,
 							com.rapidminer.belt.table.LegacyType.FILE_PATH, null,
-							com.rapidminer.belt.table.LegacyType.DATE, com.rapidminer.belt.table.LegacyType.TIME};
+							com.rapidminer.belt.table.LegacyType.DATE, null};
 			assertArrayEquals(legacyExpected, legacyResult);
 		}
 
@@ -614,8 +617,6 @@ public class BeltConverterTest {
 				String baseName;
 				if (role == ColumnRole.SCORE) {
 					baseName = Attributes.CONFIDENCE_NAME;
-				} else if (role == ColumnRole.METADATA) {
-					baseName = "meta_data";
 				} else {
 					baseName = role.name().toLowerCase(Locale.ROOT);
 				}
@@ -1020,7 +1021,7 @@ public class BeltConverterTest {
 
 			int[] valueTypes =
 					Arrays.stream(set.getAttributes().createRegularAttributeArray()).mapToInt(Attribute::getValueType).toArray();
-			assertArrayEquals(new int[]{Ontology.BINOMINAL, Ontology.BINOMINAL, Ontology.POLYNOMINAL,
+			assertArrayEquals(new int[]{Ontology.BINOMINAL, Ontology.BINOMINAL, Ontology.NOMINAL,
 					Ontology.BINOMINAL, Ontology.BINOMINAL}, valueTypes);
 		}
 
@@ -1055,7 +1056,7 @@ public class BeltConverterTest {
 
 			int[] valueTypes =
 					Arrays.stream(set.getAttributes().createRegularAttributeArray()).mapToInt(Attribute::getValueType).toArray();
-			assertArrayEquals(new int[]{Ontology.BINOMINAL, Ontology.POLYNOMINAL}, valueTypes);
+			assertArrayEquals(new int[]{Ontology.BINOMINAL, Ontology.NOMINAL}, valueTypes);
 
 			NominalMapping first = set.getAttributes().get("first").getMapping();
 			assertEquals("blup", first.getNegativeString());
@@ -1135,7 +1136,7 @@ public class BeltConverterTest {
 			String[] expected =
 					new String[]{null, Attributes.ID_NAME, Attributes.LABEL_NAME, Attributes.PREDICTION_NAME,
 							Attributes.CONFIDENCE_NAME, Attributes.WEIGHT_NAME, Attributes.OUTLIER_NAME,
-							Attributes.CLUSTER_NAME, Attributes.BATCH_NAME, "meta_data", "ignore-me",
+							Attributes.CLUSTER_NAME, Attributes.BATCH_NAME, "metadata", "ignore-me",
 							"confidence_Yes"};
 			assertArrayEquals(expected, result);
 		}
@@ -1167,8 +1168,10 @@ public class BeltConverterTest {
 			builder.addMetaData("att7.5", com.rapidminer.belt.table.LegacyType.NUMERICAL);
 
 			builder.addNominal("att8", i -> i % 2 == 0 ? "A" : "B");
+			builder.addMetaData("att8", com.rapidminer.belt.table.LegacyType.POLYNOMINAL);
 
 			builder.addNominal("att9", i -> i % 2 == 0 ? "A" : "B", 2);
+			builder.addMetaData("att9", com.rapidminer.belt.table.LegacyType.POLYNOMINAL);
 
 			builder.addNominal("att10", i -> i % 2 == 0 ? "A" : "B");
 			builder.addMetaData("att10", com.rapidminer.belt.table.LegacyType.BINOMINAL);
@@ -1180,7 +1183,6 @@ public class BeltConverterTest {
 			builder.addMetaData("att12", com.rapidminer.belt.table.LegacyType.FILE_PATH);
 
 			builder.addNominal("att13", i -> i % 2 == 0 ? "A" : "B", 2);
-			builder.addMetaData("att13", com.rapidminer.belt.table.LegacyType.NOMINAL);
 
 			builder.addBoolean("att14", i -> i % 2 == 0 ? "A" : "B", "A");
 
@@ -1192,7 +1194,7 @@ public class BeltConverterTest {
 					StreamSupport.stream(set.getAttributes().spliterator(), false).mapToInt(Attribute::getValueType)
 							.toArray();
 			int[] expected = new int[]{Ontology.REAL, Ontology.NUMERICAL, Ontology.INTEGER, Ontology.INTEGER,
-					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.INTEGER, Ontology.INTEGER, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
+					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.TIME, Ontology.TIME, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
 					Ontology.BINOMINAL, Ontology.STRING, Ontology.FILE_PATH, Ontology.NOMINAL, Ontology.BINOMINAL};
 
 			assertArrayEquals(expected, result);
@@ -1211,7 +1213,7 @@ public class BeltConverterTest {
 			builder.addMetaData("att3", com.rapidminer.belt.table.LegacyType.REAL);
 
 			builder.addInt53Bit("att4", i -> i);
-			builder.addMetaData("att4", com.rapidminer.belt.table.LegacyType.NOMINAL);
+			builder.addMetaData("att4", com.rapidminer.belt.table.LegacyType.POLYNOMINAL);
 
 			builder.addNominal("att5", i -> i % 2 == 0 ? "A" : i % 3 == 0 ? "B" : "C", 2);
 			builder.addMetaData("att5", com.rapidminer.belt.table.LegacyType.BINOMINAL);
@@ -1226,7 +1228,7 @@ public class BeltConverterTest {
 			builder.addMetaData("att8", com.rapidminer.belt.table.LegacyType.DATE_TIME);
 
 			builder.addDateTime("att9", i -> Instant.EPOCH);
-			builder.addMetaData("att9", com.rapidminer.belt.table.LegacyType.NOMINAL);
+			builder.addMetaData("att9", com.rapidminer.belt.table.LegacyType.POLYNOMINAL);
 
 			Table table = builder.build(Belt.defaultContext());
 
@@ -1236,7 +1238,7 @@ public class BeltConverterTest {
 					StreamSupport.stream(set.getAttributes().spliterator(), false).mapToInt(Attribute::getValueType)
 							.toArray();
 			int[] expected = new int[]{Ontology.REAL, Ontology.REAL, Ontology.INTEGER, Ontology.INTEGER,
-					Ontology.POLYNOMINAL, Ontology.INTEGER, Ontology.INTEGER, Ontology.INTEGER, Ontology.DATE_TIME};
+					Ontology.NOMINAL, Ontology.TIME, Ontology.TIME, Ontology.TIME, Ontology.DATE_TIME};
 			assertArrayEquals(expected, result);
 		}
 
@@ -1445,6 +1447,7 @@ public class BeltConverterTest {
 			Attribute date = AttributeFactory.createAttribute("date", Ontology.DATE);
 			Attribute time = AttributeFactory.createAttribute("time", Ontology.TIME);
 			List<Attribute> attributes = Arrays.asList(numeric, real, integer, dateTime, date, time);
+
 			ExampleSet set = ExampleSets.from(attributes).withBlankSize(150)
 					.withColumnFiller(numeric, i -> Math.random() > 0.7 ? Double.NaN : Math.random())
 					.withColumnFiller(real, i -> Math.random() > 0.7 ? Double.NaN : 42 + Math.random())
@@ -1453,8 +1456,7 @@ public class BeltConverterTest {
 							* 1515410698d + Math.floor(Math.random() * 1000))
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN : (i % 3 == 0 ? -1 : 1) *
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
-					.withColumnFiller(time, i -> Math.random() > 0.7 ? Double.NaN :
-							(i % 3 == 0 ? -1 : 1) * Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+					.withColumnFiller(time, i -> Math.random() > 0.7 ? Double.NaN : randomTimeMillis())
 					.build();
 
 			Table table = com.rapidminer.belt.table.BeltConverter.convert(set, CONTEXT).getTable();
@@ -1822,7 +1824,7 @@ public class BeltConverterTest {
 			String[] expected =
 					new String[]{null, Attributes.ID_NAME, Attributes.LABEL_NAME, Attributes.PREDICTION_NAME,
 							Attributes.CONFIDENCE_NAME, Attributes.WEIGHT_NAME, Attributes.OUTLIER_NAME,
-							Attributes.CLUSTER_NAME, Attributes.BATCH_NAME, "meta_data", "ignore-me",
+							Attributes.CLUSTER_NAME, Attributes.BATCH_NAME, "metadata", "ignore-me",
 							"confidence_Yes"};
 			assertArrayEquals(expected, result);
 		}
@@ -1854,8 +1856,10 @@ public class BeltConverterTest {
 			builder.addMetaData("att7.5", com.rapidminer.belt.table.LegacyType.NUMERICAL);
 
 			builder.addNominal("att8", i -> i % 2 == 0 ? "A" : "B");
+			builder.addMetaData("att8", com.rapidminer.belt.table.LegacyType.POLYNOMINAL);
 
 			builder.addNominal("att9", i -> i % 2 == 0 ? "A" : "B", 2);
+			builder.addMetaData("att9", com.rapidminer.belt.table.LegacyType.POLYNOMINAL);
 
 			builder.addNominal("att10", i -> i % 2 == 0 ? "A" : "B");
 			builder.addMetaData("att10", com.rapidminer.belt.table.LegacyType.BINOMINAL);
@@ -1867,7 +1871,6 @@ public class BeltConverterTest {
 			builder.addMetaData("att12", com.rapidminer.belt.table.LegacyType.FILE_PATH);
 
 			builder.addNominal("att13", i -> i % 2 == 0 ? "A" : "B", 2);
-			builder.addMetaData("att13", com.rapidminer.belt.table.LegacyType.NOMINAL);
 
 			builder.addBoolean("att14", i -> i % 2 == 0 ? "A" : "B", "A");
 
@@ -1879,7 +1882,7 @@ public class BeltConverterTest {
 					StreamSupport.stream(set.getAttributes().spliterator(), false).mapToInt(Attribute::getValueType)
 							.toArray();
 			int[] expected = new int[]{Ontology.REAL, Ontology.NUMERICAL, Ontology.INTEGER, Ontology.INTEGER,
-					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.INTEGER, Ontology.INTEGER, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
+					Ontology.DATE_TIME, Ontology.DATE, Ontology.TIME, Ontology.TIME, Ontology.TIME, Ontology.POLYNOMINAL, Ontology.POLYNOMINAL,
 					Ontology.BINOMINAL, Ontology.STRING, Ontology.FILE_PATH, Ontology.NOMINAL, Ontology.BINOMINAL};
 
 			assertArrayEquals(expected, result);
@@ -1914,6 +1917,190 @@ public class BeltConverterTest {
 		}
 	}
 
+	/**
+	 * Tests for the conversion between the old and new time format.
+	 */
+	public static class TimeConversion {
+		@Test
+		public void testFromLocalTime() {
+			TableBuilder builder = Builders.newTableBuilder(2);
+			LocalTime[] testValues = new LocalTime[]{
+					LocalTime.MIN,
+					LocalTime.MAX,
+					LocalTime.MIDNIGHT,
+					LocalTime.NOON,
+					LocalTime.now()
+			};
+			builder.addTime("time", i -> testValues[i]);
+			Table table = builder.build(Belt.defaultContext());
+			ExampleSet es = BeltConverter.convertSequentially(new IOTable(table));
+			Table convertedTable = BeltConverter.convert(es, CONTEXT).getTable();
+			double[] expected = readTableToArray(convertedTable)[0];
+			double[] actual = readTableToArray(convertedTable)[0];
+			for (int i = 0; i < expected.length; i++) {
+				assertEquals(((long) expected[i]) / 1_000_000 * 1_000_000, (long) actual[i]);
+			}
+		}
+
+		@Test
+		public void testFromLegacyTime() {
+			ExampleSetBuilder builder = ExampleSets.from(AttributeFactory.createAttribute("time", Ontology.TIME));
+			long millisecondsPerHour = 3_600_000L;
+			for (int i = -24; i < 24; i++) {
+				builder.addRow(new double[]{i * millisecondsPerHour});
+				builder.addRow(new double[]{i * millisecondsPerHour + 1});
+				builder.addRow(new double[]{i * millisecondsPerHour - 1});
+			}
+			ExampleSet es = builder.build();
+			Table table = BeltConverter.convert(es, CONTEXT).getTable();
+			double[] expected = readExampleSetToArray(es)[0];
+			double[] actual = readTableToArray(table)[0];
+			for (int i = 0; i < expected.length; i++) {
+				LocalTime localTime = LocalTime.ofNanoOfDay((long) actual[i]);
+				Calendar calendar = Tools.getPreferredCalendar();
+				calendar.setTimeInMillis((long) expected[i]);
+				assertEquals(calendar.get(Calendar.HOUR_OF_DAY), localTime.getHour());
+				assertEquals(calendar.get(Calendar.MINUTE), localTime.getMinute());
+				assertEquals(calendar.get(Calendar.SECOND), localTime.getSecond());
+				assertEquals(calendar.get(Calendar.MILLISECOND), localTime.getNano() / 1_000_000);
+				assertEquals(0, localTime.getNano() % 1_000_000);
+			}
+		}
+	}
+
+	public static class EpochMillis {
+
+		@Test
+		public void testEpoch() {
+			assertEquals(Instant.EPOCH.toEpochMilli(), BeltConverter.toEpochMilli(Instant.EPOCH), 1e-20);
+		}
+
+		@Test
+		public void testNormal() {
+			Instant instant = Instant.ofEpochSecond(1607000031, 558000000);
+			assertEquals(instant.toEpochMilli(), BeltConverter.toEpochMilli(instant), 1e-20);
+		}
+
+		@Test
+		public void testNegativeRecent() {
+			Instant instant = Instant.ofEpochSecond(-4704433617L, 558000000);
+			assertEquals(instant.toEpochMilli(), BeltConverter.toEpochMilli(instant), 1e-20);
+		}
+
+		@Test
+		public void testMin() {
+			//No arithmetic exception
+			BeltConverter.toEpochMilli(Instant.MIN);
+		}
+
+		@Test
+		public void testMax() {
+			//No arithmetic exception
+			BeltConverter.toEpochMilli(Instant.MAX);
+		}
+	}
+
+	@RunWith(Parameterized.class)
+	public static class ToStudioRole {
+
+		private final ColumnRole role;
+
+		public ToStudioRole(ColumnRole role) {
+			this.role = role;
+		}
+
+		@Parameterized.Parameters(name = "{0}")
+		public static Collection<Object> params() {
+			return Arrays.asList(ColumnRole.values());
+		}
+
+		@Test
+		public void testConversion() {
+			assertEquals(role, BeltConverter.convertRole(BeltConverter.toStudioRole(role)));
+		}
+	}
+
+	public static class HeaderExampleTest {
+
+		@BeforeClass
+		public static void setup() {
+			RapidMiner.initAsserters();
+		}
+
+		@Test
+		public void testConversionSimple() {
+			Table table = Builders.newTableBuilder(12)
+					.addReal("real", i -> i / 2.0).addInt53Bit("int", i -> i)
+					.addBoolean("bool", i -> i % 2 == 0 ? "bla" : "blup", "blup")
+					.addNominal("nominal", i -> "val" + i)
+					.addDateTime("datetime", i -> Instant.ofEpochSecond(i * 100000)).build(Belt.defaultContext());
+			HeaderExampleSet examples = BeltConverter.convertHeader(table);
+			IOTable convert = BeltConverter.convert(examples, new SequentialConcurrencyContext());
+			RapidAssert.assertEquals(new IOTable(table.stripData()), convert);
+		}
+
+		@Test
+		public void testConversionSpecialBoolean() {
+			Table table = Builders.newTableBuilder(12)
+					.addBoolean("bool0", i -> null, null)
+					.addBoolean("bool", i -> i % 2 == 0 ? "bla" : "blup", "bla")
+					.addBoolean("bool2", i -> i % 2 == 0 ? "bla" : null, "bla")
+					.addBoolean("bool3", i -> i % 2 == 0 ? "bla" : null, null)
+					.build(Belt.defaultContext());
+			HeaderExampleSet examples = BeltConverter.convertHeader(table);
+			IOTable convert = BeltConverter.convert(examples, new SequentialConcurrencyContext());
+			RapidAssert.assertEquals(new IOTable(table.stripData()), convert);
+		}
+
+		@Test
+		public void testFromES() {
+			Attribute nominal = AttributeFactory.createAttribute("nominal", Ontology.NOMINAL);
+			Attribute string = AttributeFactory.createAttribute("string", Ontology.STRING);
+			Attribute polynominal = AttributeFactory.createAttribute("polynominal", Ontology.POLYNOMINAL);
+			Attribute binominal = AttributeFactory.createAttribute("binominal", Ontology.BINOMINAL);
+			Attribute path = AttributeFactory.createAttribute("path", Ontology.FILE_PATH);
+			for (int i = 0; i < 5; i++) {
+				nominal.getMapping().mapString("nominalValue" + i);
+			}
+			for (int i = 0; i < 4; i++) {
+				string.getMapping().mapString("veryVeryLongStringValue" + i);
+			}
+			for (int i = 0; i < 6; i++) {
+				polynominal.getMapping().mapString("polyValue" + i);
+			}
+			for (int i = 0; i < 2; i++) {
+				binominal.getMapping().mapString("binominalValue" + i);
+			}
+			for (int i = 0; i < 3; i++) {
+				path.getMapping().mapString("//folder/sufolder/subsubfolder/file" + i);
+			}
+
+			Attribute numeric = AttributeFactory.createAttribute("numeric", Ontology.NUMERICAL);
+			Attribute real = AttributeFactory.createAttribute("real", Ontology.REAL);
+			Attribute integer = AttributeFactory.createAttribute("integer", Ontology.INTEGER);
+			Attribute dateTime = AttributeFactory.createAttribute("date_time", Ontology.DATE_TIME);
+			Attribute date = AttributeFactory.createAttribute("date", Ontology.DATE);
+			Attribute time = AttributeFactory.createAttribute("time", Ontology.TIME);
+			List<Attribute> attributes =
+					Arrays.asList(nominal, string, polynominal, binominal, path, numeric, real, integer, dateTime,
+							date, time);
+			Random random = new Random();
+			ExampleSet set = ExampleSets.from(attributes).withBlankSize(50)
+					.withColumnFiller(nominal, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(5))
+					.withColumnFiller(string, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(4))
+					.withColumnFiller(polynominal, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(6))
+					.withColumnFiller(binominal, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(2))
+					.withColumnFiller(path, i -> random.nextDouble() > 0.7 ? Double.NaN : random.nextInt(3))
+					.withColumnFiller(real, i -> random.nextDouble())
+					.withColumnFiller(integer, i -> random.nextInt())
+					.build();
+			IOTable table = BeltConverter.convert(set, new SequentialConcurrencyContext());
+			HeaderExampleSet headerExampleSet = new HeaderExampleSet(set);
+			IOTable expected = new IOTable(table.getTable().stripData());
+			RapidAssert.assertEquals(expected, BeltConverter.convert(headerExampleSet, new SequentialConcurrencyContext()));
+		}
+	}
+
 	public static Attribute attributeDogCatMouse() {
 		Attribute a = AttributeFactory.createAttribute("animal", Ontology.NOMINAL);
 		a.getMapping().mapString("dog");
@@ -1939,5 +2126,16 @@ public class BeltConverterTest {
 
 	public static Attribute attributeReal(int index) {
 		return AttributeFactory.createAttribute("real" + index, Ontology.REAL);
+	}
+
+	/**
+	 * Creates a random time on the day of epoch in the time zone represented via {@link Tools#getPreferredTimeZone()}.
+	 * @return the random time in milliseconds of the day
+	 */
+	static long randomTimeMillis(){
+		Calendar cal = Tools.getPreferredCalendar();
+		cal.setTimeInMillis((long) Math.floor(Math.random() * 60 * 60 * 24 * 1000));
+		cal.set(1970, Calendar.JANUARY, 1);
+		return cal.getTimeInMillis();
 	}
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -22,6 +22,8 @@ import static com.rapidminer.belt.table.BeltConverterTest.assertAttributeOrder;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -219,7 +221,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -316,7 +318,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -464,7 +466,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -742,7 +744,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -815,7 +817,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -963,7 +965,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -1147,7 +1149,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -1186,7 +1188,7 @@ public class TableViewCreatorTest {
 					.withColumnFiller(date, i -> Math.random() > 0.7 ? Double.NaN :
 							230169600000d + Math.floor(Math.random() * 100) * 1000d * 60 * 60 * 24)
 					.withColumnFiller(time,
-							i -> Math.random() > 0.7 ? Double.NaN : Math.floor(Math.random() * 60 * 60 * 24 * 1000))
+							i -> Math.random() > 0.7 ? Double.NaN : BeltConverterTest.randomTimeMillis())
 					.withRole(numeric, Attributes.LABEL_NAME)
 					.build();
 
@@ -1235,6 +1237,60 @@ public class TableViewCreatorTest {
 			RapidAssert.assertEquals(set, backSet);
 
 			assertAttributeOrder(set, backSet);
+		}
+	}
+
+	public static class GapRemoval {
+
+		@Test
+		public void testGapRemoval(){
+			final NominalBuffer nominalBuffer = Buffers.nominalBuffer(100);
+			nominalBuffer.set(0, "red");
+			nominalBuffer.set(1, "green");
+			for (int i = 1; i <= 50; i++) {
+				nominalBuffer.set(i, "blue");
+			}
+			for (int i = 51; i < 100; i++) {
+				nominalBuffer.set(i, "green");
+			}
+			Table table =
+					Builders.newTableBuilder(100).add("nominal", nominalBuffer.toColumn()).add("nominal2",
+							nominalBuffer.toColumn()).add("nominal3", nominalBuffer.toColumn()).build(Belt.defaultContext());
+			table = table.rows(0, 50, Belt.defaultContext());
+			table =
+					Builders.newTableBuilder(50).add("nominal",
+							Columns.removeUnusedDictionaryValues(table.column("nominal"), Columns.CleanupOption.REMOVE,
+									Belt.defaultContext())).add("nominal2",
+							table.column("nominal2")).add("nominal3",
+							Columns.removeUnusedDictionaryValues(table.column("nominal3"), Columns.CleanupOption.COMPACT,
+									Belt.defaultContext())).build(Belt.defaultContext());
+			final Table compacted = TableViewCreator.INSTANCE.compactDictionaries(table);
+			assertNotSame(table, compacted);
+			for (Column column : compacted.columnList()) {
+				assertEquals(column.getDictionary().maximalIndex(), column.getDictionary().size());
+			}
+		}
+
+		@Test
+		public void testNoGapRemoval(){
+			final NominalBuffer nominalBuffer = Buffers.nominalBuffer(100);
+			nominalBuffer.set(0, "red");
+			nominalBuffer.set(1, "green");
+			for (int i = 1; i <= 50; i++) {
+				nominalBuffer.set(i, "blue");
+			}
+			for (int i = 51; i < 100; i++) {
+				nominalBuffer.set(i, "green");
+			}
+			Table table =
+					Builders.newTableBuilder(100).add("nominal", nominalBuffer.toColumn()).add("nominal2",
+							nominalBuffer.toColumn()).add("nominal3", nominalBuffer.toColumn()).build(Belt.defaultContext());
+			table = table.rows(0, 50, Belt.defaultContext());
+			final Table compacted = TableViewCreator.INSTANCE.compactDictionaries(table);
+			assertSame(table, compacted);
+			for (Column column : compacted.columnList()) {
+				assertEquals(column.getDictionary().maximalIndex(), column.getDictionary().size());
+			}
 		}
 	}
 

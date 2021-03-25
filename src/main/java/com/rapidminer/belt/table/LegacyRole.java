@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -29,7 +29,7 @@ import com.rapidminer.belt.util.ColumnMetaData;
  *
  * @author Gisa Meier
  */
-class LegacyRole implements ColumnMetaData {
+public class LegacyRole implements ColumnMetaData {
 
 	/**
 	 * Identifier for column meta data of type legacy role.
@@ -40,7 +40,7 @@ class LegacyRole implements ColumnMetaData {
 
 	private final String role;
 
-	LegacyRole(String role) {
+	public LegacyRole(String role) {
 		this.role = Objects.requireNonNull(role, "Role must not be null");
 	}
 
@@ -54,7 +54,7 @@ class LegacyRole implements ColumnMetaData {
 	 *
 	 * @return the role
 	 */
-	String role() {
+	public String role() {
 		return role;
 	}
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2001-2020 by RapidMiner and the contributors
+ * Copyright (C) 2001-2021 by RapidMiner and the contributors
  *
  * Complete list of developers available at our web site:
  *
@@ -18,14 +18,18 @@
  */
 package com.rapidminer.belt.table;
 
+import java.time.Instant;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.rapidminer.RapidMiner;
 import com.rapidminer.adaption.belt.IOTable;
 import com.rapidminer.belt.column.Column;
 import com.rapidminer.belt.column.ColumnType;
@@ -37,6 +41,9 @@ import com.rapidminer.example.Attributes;
 import com.rapidminer.example.ExampleSet;
 import com.rapidminer.example.set.HeaderExampleSet;
 import com.rapidminer.tools.Ontology;
+import com.rapidminer.tools.ParameterService;
+import com.rapidminer.tools.Tools;
+import com.rapidminer.tools.parameter.ParameterChangeListener;
 
 
 /**
@@ -52,7 +59,8 @@ public final class BeltConverter {
 	/**
 	 * The standard belt types.
 	 */
-	public static final Set<Column.TypeId> STANDARD_TYPES = EnumSet.of(Column.TypeId.REAL, Column.TypeId.INTEGER_53_BIT,
+	public static final Set<Column.TypeId> STANDARD_TYPES = EnumSet.of(Column.TypeId.REAL,
+			Column.TypeId.INTEGER_53_BIT,
 			Column.TypeId.NOMINAL, Column.TypeId.DATE_TIME, Column.TypeId.TIME);
 
 	/**
@@ -103,7 +111,7 @@ public final class BeltConverter {
 	/**
 	 * String into which {@link ColumnRole#METADATA} is converted
 	 */
-	private static final String META_DATA_NAME = "meta_data";
+	private static final String META_DATA_NAME = "metadata";
 
 	/**
 	 * String into which {@link ColumnRole#INTERPRETATION} is converted
@@ -119,6 +127,41 @@ public final class BeltConverter {
 	 * String into which {@link ColumnRole#SOURCE} is converted
 	 */
 	static final String SOURCE_NAME = "source";
+
+	/**
+	 * Number of nano-seconds in a milli-second
+	 */
+	static final long NANOS_PER_MILLI_SECOND = 1_000_000;
+
+	/**
+	 * Number of nano-seconds in a milli-second
+	 */
+	static final int MILLIS_PER_SECOND = 1_000;
+
+	/**
+	 * The time zone offset retrieved via {@link Tools#getPreferredTimeZone()}. Is updated via a listener whenever the
+	 * time zone changes.
+	 */
+	private static int timeZoneOffset;
+
+	static {
+		// register listener that updates time zone offset
+		ParameterService.registerParameterChangeListener(new ParameterChangeListener() {
+			@Override
+			public void informParameterChanged(String key, String value) {
+				if (RapidMiner.PROPERTY_RAPIDMINER_GENERAL_TIME_ZONE.equals(key)) {
+					timeZoneOffset = Tools.getPreferredTimeZone().getRawOffset();
+				}
+			}
+
+			@Override
+			public void informParameterSaved() {
+				//ignore
+			}
+		});
+
+		timeZoneOffset = Tools.getPreferredTimeZone().getRawOffset();
+	}
 
 	// Suppress default constructor for noninstantiability
 	private BeltConverter() {
@@ -142,7 +185,9 @@ public final class BeltConverter {
 	/**
 	 * Extracts a {@link HeaderExampleSet} from a table. This is useful for creating a {@link
 	 * com.rapidminer.example.set.RemappedExampleSet} or specifying training header of a {@link
-	 * com.rapidminer.operator.Model}.
+	 * com.rapidminer.operator.Model}. Should only be used if the model has been trained with the table and the mapping
+	 * indices must stay the same in the header. Otherwise wrap with
+	 * {@link TableViewCreator#convertOnWriteView(IOTable, boolean)} and use {@link ExampleSet} methods from there on.
 	 *
 	 * @param table
 	 * 		the table to extract from
@@ -155,7 +200,9 @@ public final class BeltConverter {
 	}
 
 	/**
-	 * Converts a belt {@link IOTable} into an {@link ExampleSet}.
+	 * Converts a belt {@link IOTable} into an {@link ExampleSet}. Use the faster
+	 * {@link TableViewCreator#convertOnWriteView(IOTable, boolean)} instead if you are not planning change values in
+	 * currently existing columns.
 	 *
 	 * @param tableObject
 	 * 		the table object to convert
@@ -173,7 +220,9 @@ public final class BeltConverter {
 
 	/**
 	 * Converts a table object into an example set sequentially in case no operator is known. If possible, {@link
-	 * #convert(IOTable, ConcurrencyContext)} should be preferred.
+	 * #convert(IOTable, ConcurrencyContext)} should be preferred. Use the faster
+	 * {@link TableViewCreator#convertOnWriteView(IOTable, boolean)} if you are not planning change values in currently
+	 * existing columns.
 	 *
 	 * @param tableObject
 	 * 		the table object to convert
@@ -278,12 +327,11 @@ public final class BeltConverter {
 				if (dictionary.isBoolean() && !(dictionary.hasPositive() && !dictionary.hasNegative())) {
 					return Ontology.BINOMINAL;
 				}
-				return Ontology.POLYNOMINAL;
+				return Ontology.NOMINAL;
 			case DATE_TIME:
 				return Ontology.DATE_TIME;
 			case TIME:
-				//because of time zone issues, we cannot convert to time
-				return Ontology.INTEGER;
+				return Ontology.TIME;
 			default:
 				throw new ConversionException(columnName, column.type());
 		}
@@ -359,8 +407,12 @@ public final class BeltConverter {
 
 	/**
 	 * Converts attribute roles into belt column roles.
+	 *
+	 * @param studioRole
+	 * 		the studio role name
+	 * @return the appropriate {@link ColumnRole}
 	 */
-	static ColumnRole convert(String studioRole) {
+	public static ColumnRole convertRole(String studioRole) {
 		String withOutIndex = removeIndex(studioRole);
 		switch (withOutIndex) {
 			case Attributes.LABEL_NAME:
@@ -394,6 +446,109 @@ public final class BeltConverter {
 	}
 
 	/**
+	 * Converts the {@link ColumnRole} to the legacy studio role. The inverse of {@link #convertRole(String)}. In
+	 * contrast to {@link #convertRole(Table, String)} it does not take {@link LegacyRole}s into account.
+	 *
+	 * @param role
+	 * 		the role to convert
+	 * @return the legacy studio role
+	 */
+	public static String toStudioRole(ColumnRole role) {
+		if (role == null) {
+			// Nothing to convert, abort...
+			return null;
+		}
+		switch (role) {
+			case LABEL:
+				return Attributes.LABEL_NAME;
+			case ID:
+				return Attributes.ID_NAME;
+			case PREDICTION:
+				return Attributes.PREDICTION_NAME;
+			case SCORE:
+				return Attributes.CONFIDENCE_NAME;
+			case CLUSTER:
+				return Attributes.CLUSTER_NAME;
+			case OUTLIER:
+				return Attributes.OUTLIER_NAME;
+			case WEIGHT:
+				return Attributes.WEIGHT_NAME;
+			case BATCH:
+				return Attributes.BATCH_NAME;
+			case SOURCE:
+				return SOURCE_NAME;
+			case ENCODING:
+				return ENCODING_NAME;
+			case INTERPRETATION:
+				return INTERPRETATION_NAME;
+			case METADATA:
+				return META_DATA_NAME;
+			default:
+				return role.name().toLowerCase(Locale.ENGLISH);
+		}
+	}
+
+	/**
+	 * Converts this instant to the number of milliseconds from the epoch of 1970-01-01T00:00:00Z.
+	 *
+	 * Same as {@code (double)instant.toEpochMilli()} but without the arithmetic exception on overflow. Instead
+	 * precision is lost for dates in the far future or past.
+	 *
+	 * @param instant
+	 * 		the instant to convert
+	 * @return the epoch milliseconds as double
+	 * @since 0.9
+	 */
+	public static double toEpochMilli(Instant instant) {
+		double seconds = instant.getEpochSecond();
+		int nanos = instant.getNano();
+		if (seconds < 0 && nanos > 0) {
+			double millis = (seconds + 1) * MILLIS_PER_SECOND;
+			long adjustment = nanos / NANOS_PER_MILLI_SECOND - MILLIS_PER_SECOND;
+			return millis + adjustment;
+		} else {
+			double millis = seconds * MILLIS_PER_SECOND;
+			long adjustment = nanos / NANOS_PER_MILLI_SECOND;
+			return millis + adjustment;
+		}
+	}
+
+	/**
+	 * Converts the nanoseconds of the day from belt time to the milliseconds of the day in legacy time. Subtracts the
+	 * time zone offset of ({@link Tools#getPreferredTimeZone()}) because it will be added again later for the legacy
+	 * time.
+	 *
+	 * @param nanos
+	 * 		the nanoseconds of the day
+	 * @return milliseconds in the old time format
+	 */
+	public static double nanoOfDayToLegacyTime(long nanos) {
+		long millisOfDay = Math.floorDiv(nanos, BeltConverter.NANOS_PER_MILLI_SECOND);
+		return (double) millisOfDay - timeZoneOffset;
+	}
+
+	/**
+	 * Converts the milliseconds from the legacy time format to the belt time format in nanoseconds of the day. The
+	 * milliseconds must not be {@code NaN}.
+	 *
+	 * @param legacyTime
+	 * 		the double value representing the milliseconds since epoch (must not be {@code NaN}).
+	 * @param calendar
+	 * 		the calendar holding the time zone information needed to do the transformation. Please note that the method
+	 * 		modifies the given calendar via {@link Calendar#setTimeInMillis(long)}). Use {@link
+	 *        Tools#getPreferredCalendar()} if you want to invert the transformation done in {@link
+	 *        #nanoOfDayToLegacyTime(long)}.
+	 * @return local time in nanoseconds of the day
+	 */
+	public static long legacyTimeDoubleToNanoOfDay(double legacyTime, Calendar calendar) {
+		calendar.setTimeInMillis((long) legacyTime);
+		return (calendar.get(Calendar.MILLISECOND)
+				+ (calendar.get(Calendar.SECOND)
+				+ (calendar.get(Calendar.MINUTE)
+				+ calendar.get(Calendar.HOUR_OF_DAY) * 60) * 60) * MILLIS_PER_SECOND) * NANOS_PER_MILLI_SECOND;
+	}
+
+	/**
 	 * If the given String ends with an index suffix this suffix is removed.
 	 */
 	private static String removeIndex(String string) {
@@ -422,10 +577,11 @@ public final class BeltConverter {
 		}
 		// legacy ontology is super type or the same
 		if (Ontology.ATTRIBUTE_VALUE_TYPE.isA(derivedOntology, legacyOntology)) {
-			return true;
+			// time is very different from date-time in belt so we do not allow conversion
+			return derivedOntology != Ontology.TIME;
 		}
-		// if binominal is requested for a polynominal derived type, check dictionary size and if only positive
-		if (legacyOntology == Ontology.BINOMINAL && derivedOntology == Ontology.POLYNOMINAL) {
+		// if binominal is requested for a nominal derived type, check dictionary size and if only positive
+		if (legacyOntology == Ontology.BINOMINAL && derivedOntology == Ontology.NOMINAL) {
 			Dictionary dictionary = column.getDictionary();
 			return dictionary.size() <= 2 &&
 					//BinominalMapping can have no positive but not no negative
