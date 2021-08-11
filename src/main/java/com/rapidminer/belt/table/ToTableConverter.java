@@ -586,9 +586,12 @@ enum ToTableConverter {
 			if (Double.isNaN(value)) {
 				buffer.set(i++, null);
 			} else {
+				// in Java 8 there is only floorDiv(long,long) but in Java 11 there is also floorDiv(long,int) - so
+				// force longs to have code compiled with Java 11 and target Java 8 actually run with Java 8
 				long longValue = (long) value;
-				buffer.set(i++, Math.floorDiv(longValue, MILLIS_PER_SECOND),
-						(int) (Math.floorMod(longValue, MILLIS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+				long longDivisor = MILLIS_PER_SECOND;
+				buffer.set(i++, Math.floorDiv(longValue, longDivisor),
+						(int) (Math.floorMod(longValue, longDivisor) * NANOS_PER_MILLI_SECOND));
 			}
 		}
 		return buffer.toColumn();
@@ -984,9 +987,12 @@ enum ToTableConverter {
 			if (Double.isNaN(value)) {
 				buffer.set(i, null);
 			} else {
+				// in Java 8 there is only floorDiv(long,long) but in Java 11 there is also floorDiv(long,int) - so
+				// force longs to have code compiled with Java 11 and target Java 8 actually run with Java 8
 				long longValue = (long) value;
-				buffer.set(i, Math.floorDiv(longValue, MILLIS_PER_SECOND),
-						(int) (Math.floorMod(longValue, MILLIS_PER_SECOND) * NANOS_PER_MILLI_SECOND));
+				long longDivisor = MILLIS_PER_SECOND;
+				buffer.set(i, Math.floorDiv(longValue, longDivisor),
+						(int) (Math.floorMod(longValue, longDivisor) * NANOS_PER_MILLI_SECOND));
 			}
 		}
 		return buffer.toColumn();

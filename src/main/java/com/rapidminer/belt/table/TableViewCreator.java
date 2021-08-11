@@ -174,27 +174,11 @@ public enum TableViewCreator{
 	 * @param table
 	 * 		the table with the dictionaries to compact
 	 * @return a new table with all columns with compact dictionaries or the same table if that was	already the case
+	 * @deprecated since 1.0.1; use {@link Tables#compactDictionaries(Table)} instead
 	 */
+	@Deprecated
 	public Table compactDictionaries(Table table) {
-		Column[] newColumns = null;
-		int index = 0;
-		for (Column column : table.getColumns()) {
-			if (column.type().id() == Column.TypeId.NOMINAL) {
-				Dictionary dict = column.getDictionary();
-				if (dict.size() != dict.maximalIndex()) {
-					if (newColumns == null) {
-						newColumns = Arrays.copyOf(table.getColumns(), table.width());
-					}
-					newColumns[index] = Columns.compactDictionary(column);
-				}
-			}
-			index++;
-		}
-		if (newColumns == null) {
-			return table;
-		} else {
-			return new Table(newColumns, table.labelArray(), table.getMetaData());
-		}
+		return Tables.compactDictionaries(table);
 	}
 
 	/**
